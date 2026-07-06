@@ -192,6 +192,16 @@ def generate_csv(dataset_dir, output_csv):
                                     
                                     # Data Augmentation (Placeholder)
                                     merged_features = apply_augmentation(merged_features)
+                                    
+                                    from scipy.signal import butter, filtfilt
+                                    fs = 30
+                                    cutoff = 1
+                                    order = 4
+                                    nyq = 0.5 * fs
+                                    normal_cutoff = cutoff / nyq
+                                    b, a = butter(order, normal_cutoff, btype='low')
+                                    if min_len > 15:
+                                        merged_features = filtfilt(b, a, merged_features, axis=0)
 
                                     filtered_interpolated = {"0": interpolate_features(merged_features, 110)}
                                     delta_feature = process_delta(filtered_interpolated)

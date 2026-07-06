@@ -213,8 +213,19 @@ def generate_csv(dataset_dir, output_csv):
                         # 2. Data Augmentation (Placeholder)
                         df_raw[feature_cols] = apply_augmentation(df_raw[feature_cols])
 
+                        from scipy.signal import butter, filtfilt
+                        fs = 30
+                        cutoff = 1
+                        order = 4
+                        nyq = 0.5 * fs
+                        normal_cutoff = cutoff / nyq
+                        b, a = butter(order, normal_cutoff, btype='low')
+
                         for col in feature_cols:
-                            df_raw[col] = remove_outliers_and_interpolate(df_raw[col].values)
+                            raw_val = remove_outliers_and_interpolate(df_raw[col].values)
+                            if len(raw_val) > 15:
+                                raw_val = filtfilt(b, a, raw_val)
+                            df_raw[col] = raw_val
 
                         orig_indices = np.linspace(0, 1, len(df_raw))
                         target_indices = np.linspace(0, 1, 100)
