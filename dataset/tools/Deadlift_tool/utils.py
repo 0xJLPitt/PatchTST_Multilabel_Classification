@@ -267,4 +267,4 @@ def remove_outliers(features):
 
     # 用 mean 替換異常值
     features_clean[outliers] = np.tile(mean, (features.shape[0], 1))[outliers]
-    return features
+    return features_clean

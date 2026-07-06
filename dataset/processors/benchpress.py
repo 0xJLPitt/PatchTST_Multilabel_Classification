@@ -196,7 +196,19 @@ def generate_csv(dataset_dir, output_csv):
                         if "bar_ratio" in df_raw.columns:
                             df_raw = df_raw.drop(columns=["bar_ratio"])
                             
-                        feature_cols = df_raw.columns[1:] # Exclude 'frame'
+                        feature_cols = [
+                            "bar_x", "bar_y", 
+                            "left_shoulder_y", "right_shoulder_y", 
+                            "left_dist", "right_dist", 
+                            "left_elbow", "left_shoulder", 
+                            "right_elbow", "right_shoulder", 
+                            "left_torso-arm", "right_torso-arm"
+                        ]
+                        
+                        # Skip this file if there are any NaN values in the feature columns (ignoring the 27 mismatched/incomplete reps)
+                        # if df_raw[feature_cols].isna().any().any():
+                        #     # print(f"Skipping {file} in {subject_dir} due to NaN values in raw features.")
+                        #     continue
                         
                         # 2. Data Augmentation (Placeholder)
                         df_raw[feature_cols] = apply_augmentation(df_raw[feature_cols])
@@ -245,6 +257,7 @@ def generate_csv(dataset_dir, output_csv):
                         
                         data.append({
                             "subject": sub_name,
+                            "instance": os.path.basename(subject_dir),
                             "clip": clip_val,
                             "features": str(norm_48.tolist()),
                             "label": str(label_vec)

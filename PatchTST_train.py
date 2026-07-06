@@ -1,6 +1,9 @@
 from random import choice
 import torch
 import os, json
+import warnings
+from sklearn.exceptions import UndefinedMetricWarning
+warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
 import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader, random_split
@@ -13,7 +16,7 @@ import argparse
 from PatchTST_test import test_model_with_path_tracking
 import math
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=8):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=15):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     best_f1 = 0.0  # 用來儲存最佳 F1-score
@@ -111,8 +114,9 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     parser = argparse.ArgumentParser()
     parser.add_argument('--sport', type=str, choices=['benchpress', 'deadlift'])
-    parser.add_argument('--subject_split', type=bool, help='Whether to split the dataset by subject')
-    parser.add_argument('--num_workers', type=int, default=4, help='Number of subset workers for DataLoader')
+    parser.add_argument('--type', type=str, choices=['2d', '3d', '2D', '3D'], default='3D', help='Feature type (2D or 3D) for deadlift')
+    parser.add_argument('--subject_isolated', action='store_true', help='Whether to split the dataset by subject')
+    parser.add_argument('--num_workers', type=int, default=0, help='Number of subset workers for DataLoader')
     parser.add_argument('--tag', type=str, help='Tag for save_dir, default is your data argumentation') # spawner, ...
     args = parser.parse_args()
     seeds = [42, 2023, 7, 88, 100, 999]
@@ -120,9 +124,10 @@ if __name__ == "__main__":
     from dataset import *
     
     if args.sport == 'deadlift':
-        data_path = os.path.join(os.getcwd(), 'data', 'deadlift_dataset.csv')
+        feat_type = args.type.upper()
+        data_path = os.path.join(os.getcwd(), 'data', f'deadlift_dataset_{args.type.lower()}.csv')
         full_dataset = Dataset_Deadlift(data_path)
-        save_dir = f'./models/deadlift/TST_Deadlift/{args.tag}'
+        save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
         num_classes = 4
         input_len = 110
         
@@ -135,24 +140,104 @@ if __name__ == "__main__":
     
     
     dataset_folds = []
-    if args.subject_split:
-        unique_subjects = sorted(list(set(full_dataset.subjects)))
-        random.shuffle(unique_subjects)
-
-        # 7:1:2 split for subjects
-        n_subs = len(unique_subjects)
-        tr_end = int(0.7 * n_subs)
-        vl_end = int(0.8 * n_subs)
+    if args.subject_isolated:
+        train_indices = []
+        valid_indices = []
+        test_indices = []
         
-        train_subs = set(unique_subjects[:tr_end])
-        val_subs = set(unique_subjects[tr_end:vl_end])
-        test_subs = set(unique_subjects[vl_end:])
+        from collections import defaultdict
+        instance_subject = {}
+        instance_primary_label = {}
+        instance_indices = defaultdict(list)
         
-        train_indices = [idx for idx, s in enumerate(full_dataset.subjects) if s in train_subs]
-        valid_indices = [idx for idx, s in enumerate(full_dataset.subjects) if s in val_subs]
-        test_indices = [idx for idx, s in enumerate(full_dataset.subjects) if s in test_subs]
+        for idx in range(len(full_dataset)):
+            sub = full_dataset.subjects[idx]
+            inst = full_dataset.instances[idx]
+            label = tuple(full_dataset.labels[idx].int().tolist())
+            
+            instance_indices[inst].append(idx)
+            if inst not in instance_primary_label:
+                instance_primary_label[inst] = label
+                instance_subject[inst] = sub
+                
+        # 按照受試者對實例進行分組
+        subject_instances = defaultdict(list)
+        for inst, label in instance_primary_label.items():
+            sub = instance_subject[inst]
+            subject_instances[sub].append(inst)
+            
+        train_insts = set()
+        val_insts = set()
+        test_insts = set()
         
-        # We only need one "fold" for a fixed 7:1:2 split
+        # 統計各類別的實例總數與已分配給訓練集的數量
+        class_free_insts = defaultdict(list)
+        class_total_count = defaultdict(int)
+        class_already_train = defaultdict(int)
+        
+        for inst, label in instance_primary_label.items():
+            class_total_count[label] += 1
+            
+        # 優先條件：每個受試者必須至少有 1 組在 trainingset
+        for sub in sorted(subject_instances.keys()):
+            insts = list(subject_instances[sub])
+            # 用受試者名稱作為 Seed 進行 Shuffle，確保切分結果可重現
+            sub_rng = random.Random(sub)
+            sub_rng.shuffle(insts)
+            
+            first_inst = insts[0]
+            train_insts.add(first_inst)
+            first_label = instance_primary_label[first_inst]
+            class_already_train[first_label] += 1
+            
+            # 剩餘的實例作為自由分配組別
+            for free_inst in insts[1:]:
+                free_label = instance_primary_label[free_inst]
+                class_free_insts[free_label].append(free_inst)
+                
+        # 針對每個類別，分配其剩餘的自由組別以達成全域的 75%:15%:10% 比例
+        for label, free_list in class_free_insts.items():
+            label_rng = random.Random(str(label))
+            label_rng.shuffle(free_list)
+            
+            total_class = class_total_count[label]
+            target_train = round(0.75 * total_class)
+            target_val = round(0.15 * total_class)
+            target_test = total_class - target_train - target_val
+            
+            already_tr = class_already_train[label]
+            need_tr = max(0, target_train - already_tr)
+            
+            free_for_val_test = len(free_list) - need_tr
+            if free_for_val_test < 0:
+                # 自由組數不足以填滿目標訓練集，將剩餘自由組全部分給訓練集
+                for inst in free_list:
+                    train_insts.add(inst)
+            else:
+                # 分配 need_tr 個自由組給訓練集
+                for inst in free_list[:need_tr]:
+                    train_insts.add(inst)
+                
+                # 分配剩下的自由組給驗證集和測試集
+                rem_list = free_list[need_tr:]
+                denom = target_val + target_test
+                val_ratio = target_val / denom if denom > 0 else 0.60
+                
+                n_val = round(val_ratio * len(rem_list))
+                
+                for inst in rem_list[:n_val]:
+                    val_insts.add(inst)
+                for inst in rem_list[n_val:]:
+                    test_insts.add(inst)
+                    
+        # 將實例映射回原始資料集的索引
+        for inst in train_insts:
+            train_indices.extend(instance_indices[inst])
+        for inst in val_insts:
+            valid_indices.extend(instance_indices[inst])
+        for inst in test_insts:
+            test_indices.extend(instance_indices[inst])
+                
         dataset_folds = [(train_indices, valid_indices, test_indices)]
         num_folds = 1
     else:
@@ -163,8 +248,8 @@ if __name__ == "__main__":
             random.shuffle(all_indices)
             
             n_total = len(all_indices)
-            tr_end = int(0.7 * n_total)
-            vl_end = int(0.8 * n_total)
+            tr_end = int(0.75 * n_total)
+            vl_end = int(0.90 * n_total)
             
             train_idx = all_indices[:tr_end]
             val_idx = all_indices[tr_end:vl_end]
@@ -178,6 +263,7 @@ if __name__ == "__main__":
     all_f1_scores = []
     cost_times = []
     accuracies = []
+    all_class_f1_scores = []
 
     for i, (t_idx, v_idx, test_indices) in enumerate(dataset_folds):
         train_dataset = Datasubset(full_dataset, t_idx, transform=True)
@@ -187,9 +273,9 @@ if __name__ == "__main__":
         input_dim = full_dataset.dim
         print(f'Fold {i} | Input Dim: {input_dim} | Train: {len(train_dataset)}, Val: {len(valid_dataset)}, Test: {len(test_dataset)}')
 
-        train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-        valid_loader = DataLoader(valid_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-        test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+        valid_loader = DataLoader(valid_dataset, batch_size=64, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
         # 訓練與測試
         model = PatchTSTClassifier(input_dim, num_classes, input_len).to(device)
@@ -204,17 +290,23 @@ if __name__ == "__main__":
 
         train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path)
 
-        avg_loss, f1, avg_time_per_sample, accuracy = test_model_with_path_tracking(
-            model, test_loader, criterion, txt_dir, save_path, num_classes
+        avg_loss, f1, avg_time_per_sample, accuracy, class_f1 = test_model_with_path_tracking(
+            model, test_loader, criterion, txt_dir, save_path, num_classes, sport=args.sport
         )
         print(f"Fold {i} Test F1: {f1:.4f}, Accuracy: {accuracy:.4f}, cost {avg_time_per_sample} sec")
         all_f1_scores.append(f1)
         cost_times.append(avg_time_per_sample)
         accuracies.append(accuracy)
+        all_class_f1_scores.append(class_f1)
 
         if f1 > best_f1:
             best_f1 = f1
             best_seed = i
             best_model_path = save_path
 
-    write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path)
+    if args.sport == 'deadlift':
+        classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
+    else:
+        classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
+
+    write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path, class_names=classes, class_f1_scores=all_class_f1_scores)

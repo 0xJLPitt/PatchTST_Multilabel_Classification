@@ -90,15 +90,38 @@ def plot_custom_confusion_matrix(cm, class_names, save_path):
     plt.savefig(save_path)
     plt.close()
     
-def write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path):
+def write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path, class_names=None, class_f1_scores=None):
     # 🔍 顯示結果 & 建立結果字串
     summary_lines = []
-    summary_lines.append("\n✅ F1 scores from each Fold:")
-    for se, f1, ac, co in zip(list(range(num_folds)), all_f1_scores, accuracies, cost_times):
-        summary_lines.append(f"Seed {se}: F1 = {f1:.4f}, Accuracy: {ac:.4f}, cost time = {co:.6f} sec")
+    
+    if isinstance(num_folds, int):
+        fold_ids = list(range(num_folds))
+        name_prefix = "Fold"
+    else:
+        fold_ids = num_folds
+        name_prefix = "Seed"
 
-    summary_lines.append(f"\n📊 Average F1 Score: {np.mean(all_f1_scores):.4f} ± {np.std(all_f1_scores):.4f}")
-    summary_lines.append(f"🏆 Best F1: {best_f1:.4f} from Fold {best_seed}")
+    summary_lines.append(f"\n✅ F1 scores from each {name_prefix}:")
+    
+    if class_f1_scores is not None and class_names is not None:
+        for se, f1, ac, co, cls_f1 in zip(fold_ids, all_f1_scores, accuracies, cost_times, class_f1_scores):
+            summary_lines.append(f"{name_prefix} {se}: Macro F1 = {f1:.4f}, Accuracy: {ac:.4f}, cost time = {co:.6f} sec")
+            for c_name, c_f1 in zip(class_names, cls_f1):
+                summary_lines.append(f"  - {c_name}: F1 = {c_f1:.4f}")
+        
+        summary_lines.append(f"\n📊 Average F1 Score: {np.mean(all_f1_scores):.4f} ± {np.std(all_f1_scores):.4f}")
+        summary_lines.append("  Average F1 Score per Class:")
+        class_f1_scores_np = np.array(class_f1_scores)
+        mean_class_f1 = np.mean(class_f1_scores_np, axis=0)
+        std_class_f1 = np.std(class_f1_scores_np, axis=0)
+        for c_name, m_f1, s_f1 in zip(class_names, mean_class_f1, std_class_f1):
+            summary_lines.append(f"  - {c_name}: {m_f1:.4f} ± {s_f1:.4f}")
+    else:
+        for se, f1, ac, co in zip(fold_ids, all_f1_scores, accuracies, cost_times):
+            summary_lines.append(f"{name_prefix} {se}: F1 = {f1:.4f}, Accuracy: {ac:.4f}, cost time = {co:.6f} sec")
+        summary_lines.append(f"\n📊 Average F1 Score: {np.mean(all_f1_scores):.4f} ± {np.std(all_f1_scores):.4f}")
+
+    summary_lines.append(f"🏆 Best F1: {best_f1:.4f} from {name_prefix} {best_seed}")
     summary_lines.append(f"📁 Best model saved at: {best_model_path}")
 
     # 印出結果到 terminal

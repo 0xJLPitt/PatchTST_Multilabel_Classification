@@ -100,16 +100,33 @@ def angle_line_to_line(p1, p2, p3, p4):
 
 # --- Normalization Techniques (from step8) ---
 
+def normalize_to_neg1_1(data):
+    min_val = np.min(data)
+    max_val = np.max(data)
+    scale = max_val - min_val
+    if scale == 0:
+        scale = 1.0
+    return 2 * (data - min_val) / scale - 1.0
+
+def z_score_normalize(data):
+    mean = np.mean(data)
+    std = np.std(data)
+    if std < 1e-8:
+        z = np.zeros_like(data)
+    else:
+        z = (data - mean) / std
+    return normalize_to_neg1_1(z)
+
 def variation_normalize(data):
     out = np.zeros(len(data))
     out[1:] = data[:-1] - data[1:]
-    return out
+    return normalize_to_neg1_1(out)
 
 def variation_acceleration_normalize(data):
     out = np.zeros(len(data))
     for i in range(2, len(data)):
         out[i] = (data[i] - data[i-1]) - (data[i-1] - data[i-2])
-    return out
+    return normalize_to_neg1_1(out)
 
 def variation_ratio_normalize(data, eps=1e-3):
     out = np.zeros(len(data))
@@ -120,23 +137,40 @@ def variation_ratio_normalize(data, eps=1e-3):
         # which would otherwise turn a small absolute change into an enormous
         # ratio feature and destabilize training.
         out[i] = (prev - data[i]) / prev if abs(prev) >= eps else 0
-    return out
-
-def z_score_normalize(data):
-    scaler = StandardScaler()
-    return scaler.fit_transform(data.reshape(-1, 1)).flatten()
+    return normalize_to_neg1_1(out)
 
 def remove_outliers_and_interpolate(data):
     """Simple 3-sigma outlier removal and 1D interpolation."""
     if len(data) < 3: return data
-    mean, std = np.mean(data), np.std(data)
+    # Use nanmean and nanstd to handle existing nan values in the input data
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        mean = np.nanmean(data)
+        std = np.nanstd(data)
+    
+    # If the whole column is nan, nanmean returns nan
+    if np.isnan(mean):
+        # Fill with a default value (e.g. 0.0) to prevent propagates of NaNs
+        return np.zeros_like(data)
+        
+    if std == 0 or np.isnan(std):
+        std = 1e-8
+        
     lower, upper = mean - 3 * std, mean + 3 * std
     clean = np.copy(data)
-    clean[(data < lower) | (data > upper)] = np.nan
+    
+    # Ignore nan warning during comparison
+    with np.errstate(invalid='ignore'):
+        clean[(data < lower) | (data > upper)] = np.nan
+        
     valid = ~np.isnan(clean)
     if np.sum(valid) > 1:
         idx = np.arange(len(clean))
         return np.interp(idx, idx[valid], clean[valid])
+    elif np.sum(valid) == 1:
+        # If only one valid element, return an array filled with that element
+        return np.full_like(data, clean[valid][0])
     return np.full_like(data, mean)
 
 import json
@@ -226,116 +260,3 @@ def extract_raw_features(video_path, bar_dict, rear_ske_dict, top_ske_dict, angl
     df = pd.DataFrame(features, columns=cols)
         
     return df
-
-def run_predict(video_path, bar_dict, rear_ske_dict, top_ske_dict, split_info):
-    """
-    Predicts faults for each reputation segment using PatchTSTClassifier.
-    Input `split_info` is expected to be a dictionary mapping segment IDs to {"start": f, "end": f}.
-    If it's a list of tuples (e.g., from autocutting return), we dynamically parse it.
-    """
-    print("[Prediction] Starting preprocessing for predictions...")
-    
-    # Process split info to guarantee uniform dictionary structure: { 'idx': {start, end} }
-    segments = {}
-    if isinstance(split_info, list):
-        for i, seg in enumerate(split_info):
-            # If (start, center, end) tuple
-            segments[str(i)] = {"start": seg[0], "end": seg[-1]} 
-    elif isinstance(split_info, dict):
-        segments = split_info
-
-    if not segments:
-        print("[Prediction] No segments provided!")
-        return {}
-
-    # Extract entire video's frame features
-    df = extract_raw_features(video_path, bar_dict, rear_ske_dict, top_ske_dict)
-    if df.empty:
-        print("[Prediction] No valid coordinate features found!")
-        return {}
-
-    # Load model (Mocking weights path until provided by User)
-    model = PatchTSTClassifier(input_dim=52, num_classes=4)
-    model.eval()
-    
-    model_path = settings.BENCHPRESS_ERROR_MODEL_PATH
-
-    if os.path.exists(model_path):
-        model.load_state_dict(torch.load(model_path, map_location="cpu"))
-        print("[Prediction] Model weights loaded automatically.")
-    else:
-        print(f"[Prediction] ⚠️ No weights found at {model_path}. Proceeding with random weights for testing.")
-
-    feature_cols = df.columns[1:] # Exclude the 'frame' column (which is idx 0)
-    rep_results = {"results": {}}
-
-    for seg_id, bounds in segments.items():
-        start_f, end_f = bounds["start"], bounds["end"]
-        # Slice DataFrame to the rep bounds
-        rep_df = df[(df["frame"] >= start_f) & (df["frame"] <= end_f)].copy()
-        if len(rep_df) < 5:
-            print(f"[Prediction] Segment {seg_id} too short ({len(rep_df)} frames). Skipping.")
-            continue
-            
-        # 1. Clean outliers per column
-        for col in feature_cols:
-            rep_df[col] = remove_outliers_and_interpolate(rep_df[col].values)
-
-        # 2. Interpolate entire rep to exactly 100 frames
-        orig_indices = np.linspace(0, 1, len(rep_df))
-        target_indices = np.linspace(0, 1, 100)
-        
-        rep_100 = np.zeros((100, 13)) # 13 feature columns
-        for c_idx, col in enumerate(feature_cols):
-            f = interp1d(orig_indices, rep_df[col].values, kind='linear', fill_value='extrapolate')
-            rep_100[:, c_idx] = f(target_indices)
-
-        # 3. Apply the 4 normalizations to generate 52 columns
-        # Format block: [col0_v, col0_va, col0_vr, col0_z, col1_v, col1_va, ...]
-        norm_52 = np.zeros((100, 52))
-        for c_idx in range(13):
-            col_data = rep_100[:, c_idx]
-            v1 = variation_normalize(col_data)
-            v2 = variation_acceleration_normalize(col_data)
-            vr = variation_ratio_normalize(col_data)
-            z = z_score_normalize(col_data)
-            
-            # Interleave naturally
-            norm_52[:, c_idx*4 + 0] = v1
-            norm_52[:, c_idx*4 + 1] = v2
-            norm_52[:, c_idx*4 + 2] = vr
-            norm_52[:, c_idx*4 + 3] = z
-            
-        # 4. Model Inference
-        # Input shape: (Batch=1, Time=100, Features=52)
-        tensor_in = torch.tensor(norm_52, dtype=torch.float32).unsqueeze(0)
-        
-        with torch.no_grad():
-            logits = model(tensor_in).squeeze(0) # (4,) raw scores
-            probs = torch.sigmoid(logits) # Prob for each independent mistake
-            p_np = probs.numpy()
-
-        # Mistake classes (assumed order): 
-        # 0: tilting_left, 1: tilting_right, 2: scapular_protraction, 3: elbows_flaring
-        
-        # User requested: "Each confidence value accounts for 25%. Output a final weighted score."
-        # If the probability is predicting an ERROR, the "form score" decreases.
-        # Assuming perfect form = 100:
-        score_penalty = np.sum(p_np * 0.25) 
-        final_score = float(max(0, 1 - score_penalty))
-
-        rep_results["results"][seg_id] = {
-            "Tilting_to_the_left": float(p_np[0]),
-            "Tilting_to_the_right": float(p_np[1]),
-            "Scapular_protraction": float(p_np[2]),
-            "Elbows_flaring": float(p_np[3]),
-            "score": final_score
-        }
-        print(f"[Prediction] Rep {seg_id}: Score {final_score} (Probs: {p_np})")
-
-    score_path = os.path.join(video_path, "config", "Score.json")
-    os.makedirs(os.path.dirname(score_path), exist_ok=True)
-    with open(score_path, "w", encoding="utf-8") as f:
-        json.dump(rep_results, f, ensure_ascii=False, indent=4)
-        
-    return rep_results

@@ -128,37 +128,3 @@ def save_to_config(y_data, output_file):
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(config_data, f, indent=4, default=convert)
-
-def run_predict(folder):
-    output_file = os.path.join(folder, 'config', 'Score.json')
-
-    category = {
-        '2': 'Barbell_moving_away_from_the_shins',
-        '3': 'Hips_rising_before_the_barbell_leaves_the_ground',
-        '4': 'Barbell_colliding_with_the_knees',
-        '5': 'Lower_back_rounding'
-    }
-    results = {}
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    data_path = os.path.join(folder, 'data_norm2')
-    features = merge_data(data_path)
-    for num, name in category.items():
-        model = PatchTSTClassifier(input_dim=40, num_classes=4, input_len=110)
-        state_dict = torch.load(
-            DEADLIFT_ERROR_MODEL_PATH,
-            map_location=device,
-            weights_only=True)
-        model.load_state_dict(state_dict)
-        model.to(device)
-        model.eval()
-        # 把每一下的結果丟入模型
-        for i, feature in enumerate(features):
-            if f"{i}" not in results:
-                results[f"{i}"] = {}  # 初始化 key
-            pred, conf = predict(model, feature)
-            score = 1
-            for idx, c in enumerate(conf[0]):
-                results[f"{i}"][category[str(idx+2)]] = round(c, 4)
-                score -= c * 0.25
-            results[f"{i}"]["score"] = round(score, 4)
-    save_to_config(results, output_file)

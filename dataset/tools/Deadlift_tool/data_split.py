@@ -79,7 +79,8 @@ def process_delta_ratio(filtered_interpolated):
     delta_ratio_feature = {}
     for i, data in filtered_interpolated.items():
         epsilon = 1e-6  # 避免 A 為 0
-        delta_ratio = (data[1:] - data[:-1]) / (data[:-1] + epsilon)
+        denominator = np.where(np.abs(data[:-1]) > epsilon, data[:-1], epsilon)
+        delta_ratio = (data[1:] - data[:-1]) / denominator
         delta_ratio = np.vstack([np.zeros((1, data.shape[1])),
                                 delta_ratio])  # 第一行補 0
         delta_ratio_feature[i] = delta_ratio
@@ -99,8 +100,8 @@ def z_score_normalization(df):
 def process_zscore(filtered_interpolated):
     zscore = {}
     for i, data in filtered_interpolated.items():
-        mean = np.mean(data, axis=1, keepdims=True)
-        std = np.std(data, axis=1, keepdims=True)
+        mean = np.mean(data, axis=0, keepdims=True)
+        std = np.std(data, axis=0, keepdims=True)
         std[std == 0] = 1  # 避免除以 0
         zscore[i] = np.round((data - mean) / std, 4)
     return zscore

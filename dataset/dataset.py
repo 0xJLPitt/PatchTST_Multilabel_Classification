@@ -9,24 +9,22 @@ class Dataset_Benchpress(Dataset):
         self.features = []
         self.labels = []
         self.subjects = []
+        self.instances = []
         df = pd.read_csv(csv_file)
         for _, row in df.iterrows():
             if 'features' in row and 'label' in row:
                 features = ast.literal_eval(str(row['features']))
                 labels = ast.literal_eval(str(row['label']))
                 subject = str(row['subject'])
+                instance = str(row['instance']) if 'instance' in row else subject
                 self.features.append(torch.tensor(features).float())
                 self.labels.append(torch.tensor(labels).float())
                 self.subjects.append(subject)
-                print(subject)
-        
-        print('features_shape:', self.features.shape, type(self.features))
-        print('labels_shape:', self.labels.shape, type(self.labels))
+                self.instances.append(instance)
         
         self.features = torch.stack(self.features) if self.features else torch.tensor([])
         self.labels = torch.stack(self.labels) if self.labels else torch.tensor([])
         self.dim = self.features.shape[-1] if len(self.features) > 0 else 0
-        print(self.dim)
 
     def __len__(self):
         return len(self.features)
@@ -43,15 +41,19 @@ class Dataset_Deadlift(Dataset):
         self.features = []
         self.labels = []
         self.subjects = []
+        self.instances = []
         df = pd.read_csv(csv_file)
         for _, row in df.iterrows():
             if 'features' in row and 'label' in row:
                 features = ast.literal_eval(str(row['features']))
                 labels = ast.literal_eval(str(row['label']))
                 subject = str(row['subject'])
+                set_val = str(row['set']) if 'set' in row else '1'
+                instance = f"{subject}_set{set_val}"
                 self.features.append(torch.tensor(features).float())
                 self.labels.append(torch.tensor(labels).float())
                 self.subjects.append(subject)
+                self.instances.append(instance)
         
         self.features = torch.stack(self.features) if self.features else torch.tensor([])
         self.labels = torch.stack(self.labels) if self.labels else torch.tensor([])

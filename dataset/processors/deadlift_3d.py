@@ -50,23 +50,28 @@ def generate_csv(dataset_dir, output_csv):
     
     # Load multi-error mapping
     multi_error_path = os.path.join(dataset_dir, "multierror.json")
-    multi_labels_map = {} # (subject, set, clip) -> set of errors
+    from collections import defaultdict
+    pass_list = defaultdict(set)
+    clip_errors_map = {} # (subject, set, clip_idx) -> set of errors
+    
     if os.path.exists(multi_error_path):
         with open(multi_error_path, 'r') as f:
             me_data = json.load(f)
             for subject, mistake_groups in me_data.items():
                 for group in mistake_groups:
-                    for error_info in group:
+                    all_errors = {e["error"] for e in group}
+                    for i, error_info in enumerate(group):
                         err_name = error_info["error"]
                         set_name = error_info["set"]
-                        for clip in error_info["clips"]:
-                            key = (subject, set_name, str(clip))
-                            if key not in multi_labels_map:
-                                multi_labels_map[key] = set()
-                            multi_labels_map[key].add(err_name)
+                        clips = error_info["clips"]
+                        if i == 0:
+                            for clip in clips:
+                                clip_errors_map[(subject, set_name, int(clip))] = all_errors
+                        else:
+                            key = f"{subject}_{set_name}_{err_name}"
+                            pass_list[key].update(clips)
 
     data = []
-    processed_clips = set() # To avoid duplicate reps across different folders
     
     error_order = [
         "Barbell_moving_away_from_the_shins",
@@ -100,31 +105,30 @@ def generate_csv(dataset_dir, output_csv):
                 if os.path.exists(angle_3d_dir) and os.path.isdir(angle_3d_dir):
                     for file in os.listdir(angle_3d_dir):
                         if file.endswith(".csv"):
-                            # Deduplicate based on Subject/Set/File relative path
-                            dedup_id = (subject_dir, set_dir, file)
-                            if dedup_id in processed_clips:
+                            clip_idx = file.replace("angle_", "").replace(".csv", "")
+                            
+                            # 1. 根據與 deadlift.py 相同的方式，依賴 multierror.json 過濾重複動作
+                            key = f"{subject_dir}_{set_dir}_{label_dir}"
+                            if key in pass_list and int(clip_idx) in pass_list[key]:
                                 continue
-                            processed_clips.add(dedup_id)
                             
                             file_path = os.path.join(angle_3d_dir, file)
-                            
-                            clip_idx = file.replace("angle_", "").replace(".csv", "")
                             bar_file = os.path.join(bar_dir, f"bar_{clip_idx}.csv")
                             
                             print(f"Processing 3D Angle file: {file_path}")
                             try:
-                                # 1. Construct the Multi-label
+                                # 2. Construct the Multi-label
                                 label_vec = [0, 0, 0, 0]
                                 active_errors = set()
-                                # Add the directory-based primary error
-                                if label_dir in error_order:
-                                    active_errors.add(label_dir)
                                 
-                                # Check multierror JSON for this specific subject/set/clip
-                                # subject_dir might contain 'subject3' etc.
-                                me_key = (subject_dir, set_dir, clip_idx)
-                                if me_key in multi_labels_map:
-                                    active_errors.update(multi_labels_map[me_key])
+                                # 若是 Correct 資料夾，則標籤全部為 0；否則才讀取錯誤標籤
+                                if label_dir != 'Correct':
+                                    if label_dir in error_order:
+                                        active_errors.add(label_dir)
+                                    
+                                    me_key = (subject_dir, set_dir, int(clip_idx))
+                                    if me_key in clip_errors_map:
+                                        active_errors.update(clip_errors_map[me_key])
                                 
                                 for i, err in enumerate(error_order):
                                     if err in active_errors:
@@ -204,4 +208,4 @@ def generate_csv(dataset_dir, output_csv):
     print(f"Saved {output_csv}")
 
 if __name__ == "__main__":
-    generate_csv("DeadliftDataset_0408", "./data/deadlift_dataset.csv")
+    generate_csv("DeadliftDataset_0408", "./data/deadlift_dataset_3d.csv")
