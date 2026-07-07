@@ -16,7 +16,7 @@ import argparse
 from PatchTST_test import test_model_with_path_tracking
 import math
 
-def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=15):
+def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=8):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     best_f1 = 0.0  # 用來儲存最佳 F1-score
