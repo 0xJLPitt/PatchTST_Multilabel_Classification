@@ -195,14 +195,14 @@ if __name__ == "__main__":
                 free_label = instance_primary_label[free_inst]
                 class_free_insts[free_label].append(free_inst)
                 
-        # 針對每個類別，分配其剩餘的自由組別以達成全域的 75%:15%:10% 比例
+        # 針對每個類別，分配其剩餘的自由組別以達成全域的 70%:10%:20% 比例
         for label, free_list in class_free_insts.items():
             label_rng = random.Random(str(label))
             label_rng.shuffle(free_list)
             
             total_class = class_total_count[label]
-            target_train = round(0.75 * total_class)
-            target_val = round(0.15 * total_class)
+            target_train = round(0.7 * total_class)
+            target_val = round(0.1 * total_class)
             target_test = total_class - target_train - target_val
             
             already_tr = class_already_train[label]
