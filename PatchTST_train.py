@@ -273,14 +273,21 @@ if __name__ == "__main__":
         input_dim = full_dataset.dim
         print(f'Fold {i} | Input Dim: {input_dim} | Train: {len(train_dataset)}, Val: {len(valid_dataset)}, Test: {len(test_dataset)}')
 
-        train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-        valid_loader = DataLoader(valid_dataset, batch_size=64, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-        test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+        valid_loader = DataLoader(valid_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
         # 訓練與測試
+        # 計算此 Fold 的類別權重 (pos_weight) 以平衡正負樣本失衡
+        train_labels = full_dataset.labels[t_idx]
+        pos_counts = train_labels.sum(dim=0)
+        neg_counts = len(t_idx) - pos_counts
+        pos_counts[pos_counts == 0] = 1.0
+        pos_weight = (neg_counts / pos_counts).to(device)
+
         model = PatchTSTClassifier(input_dim, num_classes, input_len).to(device)
         optimizer = optim.Adam(model.parameters(), lr=0.0003)
-        criterion = torch.nn.BCEWithLogitsLoss()
+        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=100, min_lr_ratio=0.0)
 
         save_path = os.path.join(save_dir, f"PatchTST_model_fold{i}.pth")
