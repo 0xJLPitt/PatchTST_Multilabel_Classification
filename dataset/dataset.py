@@ -79,4 +79,16 @@ class Datasubset(Dataset):
 
     def __getitem__(self, idx):
         x, y, true_idx = self.dataset[self.indices[idx]]
+        if self.transform:
+            # 1. Random Scaling (0.9 to 1.1)
+            scale = 0.9 + 0.2 * torch.rand(1).item()
+            x = x * scale
+            
+            # 2. Random Jittering (std=0.01)
+            noise = torch.randn_like(x) * 0.01
+            x = x + noise
+            
+            # 3. Random Masking (5% dropout)
+            mask = (torch.rand_like(x) > 0.05).float()
+            x = x * mask
         return x, y, true_idx

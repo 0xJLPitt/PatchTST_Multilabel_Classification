@@ -16,6 +16,20 @@ import argparse
 from PatchTST_test import test_model_with_path_tracking
 import math
 
+class FocalLoss(torch.nn.Module):
+    def __init__(self, gamma=2.0, pos_weight=None):
+        super().__init__()
+        self.gamma = gamma
+        self.pos_weight = pos_weight
+
+    def forward(self, inputs, targets):
+        bce_loss = torch.nn.functional.binary_cross_entropy_with_logits(inputs, targets, reduction='none', pos_weight=self.pos_weight)
+        probs = torch.sigmoid(inputs)
+        p_t = probs * targets + (1 - probs) * (1 - targets)
+        focal_weight = (1 - p_t) ** self.gamma
+        focal_loss = focal_weight * bce_loss
+        return focal_loss.mean()
+
 def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=8):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
@@ -119,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default=0, help='Number of subset workers for DataLoader')
     parser.add_argument('--tag', type=str, help='Tag for save_dir, default is your data argumentation') # spawner, ...
     args = parser.parse_args()
-    seeds = [42, 2023, 7, 88, 100, 999]
+    seeds = [42] # 2023, 7, 88, 100, 999
     
     from dataset import *
     
@@ -273,9 +287,9 @@ if __name__ == "__main__":
         input_dim = full_dataset.dim
         print(f'Fold {i} | Input Dim: {input_dim} | Train: {len(train_dataset)}, Val: {len(valid_dataset)}, Test: {len(test_dataset)}')
 
-        train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=args.num_workers, pin_memory=True)
-        valid_loader = DataLoader(valid_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
-        test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=args.num_workers, pin_memory=True)
+        valid_loader = DataLoader(valid_dataset, batch_size=32, shuffle=False, num_workers=args.num_workers, pin_memory=True)
+        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=args.num_workers, pin_memory=True)
 
         # 訓練與測試
         # 計算此 Fold 的類別權重 (pos_weight) 以平衡正負樣本失衡
@@ -286,8 +300,8 @@ if __name__ == "__main__":
         pos_weight = (neg_counts / pos_counts).to(device)
 
         model = PatchTSTClassifier(input_dim, num_classes, input_len).to(device)
-        optimizer = optim.Adam(model.parameters(), lr=0.0003)
-        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+        criterion = FocalLoss(gamma=2.0, pos_weight=pos_weight)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=100, min_lr_ratio=0.0)
 
         save_path = os.path.join(save_dir, f"PatchTST_model_fold{i}.pth")
@@ -295,7 +309,7 @@ if __name__ == "__main__":
         fig_path = os.path.join(txt_dir, f"train_results_fold{i}.png")
         os.makedirs(txt_dir, exist_ok=True)
 
-        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path)
+        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, patience=30)
 
         avg_loss, f1, avg_time_per_sample, accuracy, class_f1 = test_model_with_path_tracking(
             model, test_loader, criterion, txt_dir, save_path, num_classes, sport=args.sport

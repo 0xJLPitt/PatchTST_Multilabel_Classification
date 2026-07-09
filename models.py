@@ -20,8 +20,8 @@ class PatchEmbedding(nn.Module):
         return x
 
 class PatchTSTClassifier(nn.Module):
-    def __init__(self, input_dim, num_classes, input_len, patch_len=10, 
-                 embed_dim=256, num_heads=4, num_layers=2, dropout=0.3, stride=1):
+    def __init__(self, input_dim, num_classes, input_len, patch_len=16, 
+                 embed_dim=256, num_heads=4, num_layers=2, dropout=0.3, stride=8):
         super().__init__()
         
         # 修正點：這裡傳入 1，因為每個通道獨立處理
@@ -36,11 +36,14 @@ class PatchTSTClassifier(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # 輕量化分類層：輸入維度改為 input_dim * embed_dim，參數量縮小約 100 倍以預防過擬合
+        # 升級 Late Fusion：兩層 MLP 取代單層 Linear，讓模型學習 Channel 間的非線性關聯
         self.classifier = nn.Sequential(
             nn.LayerNorm(input_dim * embed_dim),
             nn.Dropout(dropout),
-            nn.Linear(input_dim * embed_dim, num_classes)
+            nn.Linear(input_dim * embed_dim, 1024),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(1024, num_classes)
         )
 
     def forward(self, x):

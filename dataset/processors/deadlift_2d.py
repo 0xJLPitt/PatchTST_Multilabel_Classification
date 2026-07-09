@@ -245,8 +245,11 @@ def generate_csv(dataset_dir, output_csv):
                     print(f"Skipping {set_path} (Missing required 2D directories)")
                     
     df = pd.DataFrame(data)
+    output_dir = os.path.dirname(output_csv)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
     df.to_csv(output_csv, index=False)
     print(f"Saved {output_csv}")
 
 if __name__ == "__main__":
-    generate_csv("DeadliftDataset_0408", "./data/deadlift_dataset_2d.csv")
+    generate_csv(r"/cats/dataset/DeadliftDataset_0408", "./data/deadlift_dataset_2d.csv")
