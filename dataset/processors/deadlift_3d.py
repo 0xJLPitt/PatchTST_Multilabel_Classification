@@ -137,9 +137,9 @@ def generate_csv(dataset_dir, output_csv):
                                 # 2. Start extracting and merging features
                                 df_3d = pd.read_csv(file_path, header=None)
                                 
-                                # Drop body length (col 5). Keep joints: 1: left knee angle, 2: left hip angle, 3: right knee angle, 4: right hip angle, 6: left arm-torso angle, 7: right arm-torso angle
+                                # Drop nothing (Keep col 5 body length). Keep joints: 1: left knee angle, 2: left hip angle, 3: right knee angle, 4: right hip angle, 5: body length, 6: left arm-torso angle, 7: right arm-torso angle
                                 # Note: index 0 is frame, so we skip it.
-                                df_3d_filtered = df_3d.iloc[:, [1, 2, 3, 4, 6, 7]]
+                                df_3d_filtered = df_3d.iloc[:, [1, 2, 3, 4, 5, 6, 7]]
                                 
                                 # Add bar_x and bar_y from bar file
                                 if os.path.exists(bar_file):
@@ -148,23 +148,47 @@ def generate_csv(dataset_dir, output_csv):
                                 else:
                                     features_bar_arr = np.zeros((len(df_3d_filtered), 2))
                                     
-                                # Add knee_x from 2D_L
+                                # Add knee_x, knee_y from 2D_L
                                 coord_2dl_file = os.path.join(set_path, "Coordinate", "2D_L", f"clip_{clip_idx}_2d.csv")
                                 if os.path.exists(coord_2dl_file):
                                     df_coord = pd.read_csv(coord_2dl_file)
-                                    # left knee x is 'x13'
+                                    # left knee x is 'x13', y is 'y13'
                                     knee_x_arr = df_coord['x13'].values.reshape(-1, 1)
+                                    knee_y_arr = df_coord['y13'].values.reshape(-1, 1)
+                                    # left shoulder x is 'x5', y is 'y5', left hip x is 'x11', y is 'y11'
+                                    shoulder_x = df_coord['x5'].values.reshape(-1, 1)
+                                    shoulder_y = df_coord['y5'].values.reshape(-1, 1)
+                                    hip_x = df_coord['x11'].values.reshape(-1, 1)
+                                    hip_y = df_coord['y11'].values.reshape(-1, 1)
+                                    
+                                    shoulder_hip_disp = np.abs(shoulder_x - hip_x)
+                                    
+                                    # Torso Angle to Ground (90=vertical, 0=horizontal)
+                                    dx = np.abs(shoulder_x - hip_x) + 1e-6
+                                    dy = np.abs(shoulder_y - hip_y)
+                                    torso_angle = np.degrees(np.arctan2(dy, dx))
                                 else:
                                     knee_x_arr = np.zeros((len(df_3d_filtered), 1))
+                                    knee_y_arr = np.zeros((len(df_3d_filtered), 1))
+                                    shoulder_hip_disp = np.zeros((len(df_3d_filtered), 1))
+                                    torso_angle = np.zeros((len(df_3d_filtered), 1))
                                 
                                 # Merge frame by frame
                                 # Make sure they have the same length
                                 min_len = min(len(df_3d_filtered), len(features_bar_arr), len(knee_x_arr))
                                 
-                                # Calculate displacement (bar_x - knee_x)
+                                # Calculate displacement
                                 bar_knee_disp = features_bar_arr[:min_len, 0:1] - knee_x_arr[:min_len]
+                                bar_knee_y_disp = features_bar_arr[:min_len, 1:2] - knee_y_arr[:min_len]
                                 
-                                merged_features = np.concatenate([df_3d_filtered.values[:min_len], features_bar_arr[:min_len], bar_knee_disp], axis=1)
+                                merged_features = np.concatenate([
+                                    df_3d_filtered.values[:min_len], 
+                                    features_bar_arr[:min_len], 
+                                    bar_knee_disp,
+                                    bar_knee_y_disp,
+                                    shoulder_hip_disp[:min_len],
+                                    torso_angle[:min_len]
+                                ], axis=1)
                                 
                                 from dataset.tools.Deadlift_tool.utils import interpolate_features
                                 from dataset.tools.Deadlift_tool.data_split import process_delta, process_delta_ratio, process_zscore, normalize_to_neg1_1

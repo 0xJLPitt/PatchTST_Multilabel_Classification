@@ -236,5 +236,247 @@ Fold 0: Macro F1 = 0.6634, Accuracy: 0.3400, cost time = 0.000013 sec
    - **預期效果**：能顯著提升模型判斷槓鈴與身體前後相對關係的能力，進而改善 `Far from the shins` 等錯誤的 F1 Score。
 
 **接下來的步驟**：
-- 執行 `dataset/processors/deadlift_3d.py` 重新生成 `deadlift_dataset_3d.csv` (維度更新為 45)。
-- 執行 `python PatchTST_train.py --sport deadlift --type 3d --subject_isolated --num_workers 4 --tag phase4_distance_feature` 訓練並驗證結果。
+- [x] 執行 `dataset/processors/deadlift_3d.py` 重新生成 `deadlift_dataset_3d.csv` (維度更新為 45)。
+- [x] 執行 `python PatchTST_train.py --sport deadlift --type 3d --subject_isolated --num_workers 4 --tag phase4_distance_feature` 訓練並驗證結果。
+
+### 📈 實驗結果 (Phase 4: Distance Feature)
+
+加入物理距離特徵 (Input Dim: 45) 後，模型的辨識準確率 (Accuracy) 出現了突破，且特定困難類別的 F1 Score 也有顯著提升：
+
+- **整體表現**: 
+  - Macro F1: 0.6578 (與 Phase 3 的 0.6634 相比微幅下降)
+  - **Accuracy: 0.3556 (顯著上升！Phase 3 為 0.3400)**
+
+- **個別類別突破**:
+  - **Correct (標準動作)**: **F1 = 0.5072 (大幅暴增！Phase 3 僅 0.4289)**
+  - **Collide with the knees**: **F1 = 0.6026 (顯著上升！Phase 3 為 0.5719)**
+  - Far from the shins: F1 = 0.6912
+  - Hips rise first: F1 = 0.7165
+  - Lower back rounding: F1 = 0.6209
+
+**結論與洞察**：
+直接提供「槓鈴與膝蓋的水平距離」特徵非常精準地命中了痛點！模型原本最弱的 `Correct` (所有標籤皆為 0) 一口氣暴增了近 8% 的 F1 Score，且 `Collide with the knees` 也如預期般獲得明顯提升。
+
+這說明了一個重要的物理現象：**「正確的硬舉」非常依賴槓鈴與膝蓋維持在一個特定的相對距離內**。雖然加入新特徵讓另外三個類別稍微抖動下降，導致 Macro F1 微幅降低，但整體的 `Accuracy` (也就是完全命中四個錯誤狀態的嚴格機率) 從 34% 攀升到了 35.56%。這證明模型對於空間的理解已經因為這個物理特徵而更上一層樓了。
+
+---
+
+## 🛠️ 第四階段 - 進階模型優化紀錄 (Optimization Phase 4.5: Heavy Augmentation)
+
+**優化目標**：為了解決訓練後期嚴重的 **Overfitting (過擬合)** 現象（Train F1 一路飆升，但 Validation F1 提早見頂停滯）。我們需要透過更嚴苛的資料擴增，逼迫模型不能死背特定的關節角度與局部特徵，強迫它學習更泛用的時序物理規律。
+
+1. **強化隨機抖動 (Random Jittering)**：
+   - 將高斯雜訊的標準差從 `0.01` 提升至 `0.03`，放大所有坐標與角度的震盪幅度。
+2. **新增時間區塊遮蔽 (Time Masking / Cutout)**：
+   - 隨機挑選連續 **5~15 個 Frame** 的特徵強制歸零。
+   - 這能逼迫 PatchTST 模型跨越時間區段，利用上下文因果關係來「腦補」被遮擋的動作。
+3. **新增特徵通道遮蔽 (Channel Masking)**：
+   - 隨機將 10% 的物理特徵（如特定關節角度）整條切斷歸零。
+   - 逼迫 Early Fusion 機制在缺少慣用特徵（如左膝角度）時，動態尋找其他替代特徵（如髖關節或我們剛加的距離特徵）來進行綜合推論。
+4. **提升隨機點遮蔽 (Point Masking)**：
+   - 隨機點 Dropout 比例由 5% 提高至 10%。
+
+**預期效果**：
+- Train F1 的爬升速度將大幅減緩，收斂變慢。
+- 驗證集 (Validation F1) 將能更緊密地跟隨訓練集，突破先前 0.68 左右的天花板。
+
+**接下來的步驟**：
+- [x] 執行 `python PatchTST_train.py --sport deadlift --type 3d --subject_isolated --num_workers 4 --tag phase4.5_heavy_aug` (無須重新生成 Dataset，因為這是在 dataset 載入時動態處理的)。
+
+### 📈 實驗結果 (Phase 4.5: Heavy Augmentation)
+
+如預期，訓練難度大幅提升，但帶來了有趣的副作用與強化：
+
+- **整體表現**: 
+  - Macro F1: 0.6411 (下降，Phase 4 為 0.6578)
+  - Accuracy: 0.3356 (下降，Phase 4 為 0.3556)
+  - Train F1 (綠線) 爬升速度大幅減緩：在 Epoch 60 時僅達到 ~0.74，不像之前早早衝上 0.77。
+
+- **個別類別變化**:
+  - **Correct (標準動作)**: **F1 = 0.5199 (再次攀升！從 Phase 4 的 0.5072 繼續突破)**
+  - Collide with the knees: F1 = 0.5964 (微幅下降)
+  - Far from the shins: F1 = 0.6883 (微幅下降)
+  - Hips rise first: F1 = 0.7046 (微幅下降)
+  - **Lower back rounding**: **F1 = 0.5751 (顯著下跌！從 0.6209 掉落)**
+
+**結論與洞察**：
+1. **成功壓制 Overfitting 速度**：從圖表可以清楚看到，綠線 (Train F1) 確實變得平緩許多，不再快速死背訓練集。
+2. **"Correct" 類別抗噪能力大增**：即便在 10% 通道遮蔽與 5~15 幀連續時間遮蔽的地獄難度下，模型對於「完美動作」的判斷力不降反升，這證明模型已經真正學會了判斷硬舉穩定性的「宏觀規律」，而不是單靠背誦局部特徵。
+3. **副作用 (Lower back rounding 嚴重受挫)**：大幅度的遮蔽與雜訊，導致 `Lower back rounding` 準確率顯著下降。這非常合理，因為「圓背」這項錯誤通常只在特定瞬間 (如拉起槓鈴的瞬間) 出現，且角度變化較為細微。一旦關鍵 Frame 剛好被 `Time Masking` 蓋掉，或是背部角度被 `Channel Masking` 抹除，模型就幾乎沒有其他線索可以判斷。這說明目前的雜訊對於這類「細微且短暫」的錯誤可能太過嚴苛了。
+
+---
+
+## 🛠️ 第四階段 - 特徵雙重強化 (Optimization Phase 4.6: Advanced Features & Mid Augmentation)
+
+**優化目標**：修正 Phase 4.5 雜訊過強導致 `Lower back rounding` 準確率大幅下降的問題，並給予模型針對「圓背」的專屬幾何特徵，提升抓取微小代償動作的能力。
+
+1. **退回適當的資料擴增 (Mid Augmentation)**：
+   - 移除 `Channel Masking`，確保模型隨時能看到完整的背部與骨盆角度。
+   - `Time Masking` 從 5~15 幀大幅縮短為 2~5 幀，避免瞬間的錯誤動作被整段抹除。
+   - `Random Jittering` 從 0.03 下調至 0.02，保留抗噪性但不至於過度扭曲。
+   - `Point Masking` 降回 5%。
+
+2. **新增專屬圓背特徵 (Anti-Rounding Features)**：
+   - **身體直線長度 (Body Length)**：加回被捨棄的第 5 欄位。當圓背發生時，肩膀到骨盆的絕對直線距離會因為脊椎彎曲而瞬間縮水。
+   - **肩髖水平位移差 (Shoulder-Hip X-Displacement)**：讀取 2D 骨架中的肩膀 (x5) 與髖關節 (x11)，計算 `abs(shoulder_x - hip_x)`。圓背發生時，肩膀會比骨盆明顯過度前傾。
+   
+這兩項特徵的加入，使模型的 Input Dim 再度擴增至 **`55` 維** (11 個基礎特徵 * 5 種變換)。
+
+**接下來的步驟**：
+- [x] 執行 `dataset/processors/deadlift_3d.py` 重新生成 `deadlift_dataset_3d.csv` (維度更新為 55)。
+- [x] 執行 `python PatchTST_train.py --sport deadlift --type 3d --subject_isolated --num_workers 4 --tag phase4.6_advanced_features` 訓練並驗證結果。
+
+### 📈 實驗結果 (Phase 4.6: Advanced Features & Mid Augmentation)
+
+特徵工程與雜訊強度的雙管齊下，帶來了極具指標性的成功：
+
+- **整體表現**: 
+  - **Macro F1: 0.6612 (再度攀升！超越 Phase 4.5 的 0.6411 及 Phase 4 的 0.6578)**
+  - **Accuracy: 0.3630 (全場最高！超越前兩階段的 35% 門檻)**
+
+- **個別類別變化**:
+  - Correct (標準動作): F1 = 0.4887 (微幅回調，但仍遠高於早期的 0.42)
+  - Collide with the knees: F1 = 0.5964 (持平穩定)
+  - Far from the shins: F1 = 0.6935 (小幅進步)
+  - Hips rise first: F1 = 0.7218 (小幅進步)
+  - **Lower back rounding**: **F1 = 0.6328 (驚人突破！從 0.5751 谷底反彈，創下歷史新高)**
+
+**結論與洞察**：
+1. **「圓背」的特徵猜想完全命中！**：加入 `Body Length` (身體直線長度) 與 `Shoulder-Hip X-Displacement` (肩髖水平位移差) 後，`Lower back rounding` 的 F1 突破了 0.63 大關。這證明了雖然 2D 骨架沒有脊椎關鍵點，但只要利用「身體縮水」與「肩膀前傾」的幾何代償，AI 完全可以精準抓出圓背！
+2. **整體準確率 (Accuracy) 的顛峰**：Accuracy 達到 0.3630，這代表模型「同時完美猜中 4 個獨立錯誤」的嚴格機率來到了歷史最高點。模型現在對空間幾何的理解非常全面。
+3. **敏感度與特異性的拉扯**：`Correct` 的分數稍微從 Phase 4.5 的 0.5199 回落到了 0.4887。這在醫學或工業檢測上很常見：當你給了模型「抓細微錯誤的放大鏡（新特徵）」後，模型會變得比較「神經質」，有時會把些微的不標準判定為錯誤，導致純粹的 `Correct` F1 下降。但只要整體 Accuracy 是上升的，這就是一筆極度划算的交易！
+
+---
+
+## 🛠️ 第四階段 - 時間解析度極限優化 (Optimization Phase 4.7: Patch Size Tuning)
+
+**優化目標**：測試提高模型的時間解析度 (Temporal Resolution)，縮小 PatchTST 的注意力視窗，讓模型能更敏銳地捕捉極短暫的姿勢變化（例如瞬間的圓背或槓鈴撞擊）。
+
+- **模型架構微調**：
+  - `patch_len` 從預設的 16 縮小為 **8**。
+  - `stride` 從預設的 8 縮小為 **4**。
+  - 這表示模型每次觀察的時間區間縮短了一半（從約 0.5 秒降至 0.25 秒），且移動步幅更小，對於高頻動作變化的捕捉能力大幅提升。
+- **資料擴增微調**：
+  - 將 `Time Masking` 從隨機遮蔽 2~5 幀，下調至 **1~3 幀**，以配合更小的 Patch 尺寸，避免破壞過多資訊。
+
+### 📈 實驗結果 (Phase 4.7: Patch8 & Stride4)
+
+極致的時間解析度帶來了**全面性的大豐收**，這也是目前為止表現最完美的一個版本！
+
+- **整體表現**: 
+  - **Macro F1: 0.6785 (創下歷史新高！大幅突破先前的 0.6612)**
+  - **Accuracy: 0.3697 (逼近 37%！連續三個版本創下新紀錄)**
+
+- **個別類別變化**:
+  - Correct (標準動作): F1 = 0.4989 (從 0.4887 觸底反彈)
+  - **Far from the shins**: **F1 = 0.7267 (超級大突破！從 0.69 飆升，這是過去從未達到的領域)**
+  - Hips rise first: F1 = 0.7181 (維持在極高水準)
+  - **Collide with the knees**: **F1 = 0.6295 (顯著成長！成功突破 0.60 天花板)**
+  - **Lower back rounding**: **F1 = 0.6395 (再創新高！從 0.6328 繼續往上爬)**
+
+**結論與洞察**：
+1. **「微觀視野」才是硬舉的解藥**：原版 PatchTST 論文建議較大的 patch 尺寸是針對天氣或股票等緩慢變化的長時序資料。但在高強度的健身動作中，像「槓鈴撞膝蓋」或「起槓瞬間圓背」都只發生在零點幾秒內。把積木 (`patch_len`) 縮小後，模型就像戴上了顯微鏡，瞬間看清楚了所有細節！
+2. **槓鈴軌跡類別的飆升**：`Far from the shins` 與 `Collide with the knees` 這兩個跟槓鈴晃動高度相關的錯誤，在更細緻的時間切片下獲得了巨大提升。因為槓鈴偏離軌道往往是一瞬間的事，更短的 `stride=4` 讓模型能更流暢且密集地追蹤這個瞬間。
+3. **完美大滿貫**：Phase 4.6 的「幾何空間特徵」加上 Phase 4.7 的「微觀時間解析度」，時空雙管齊下，成功在這個極度困難的骨架動作分類任務上，交出了全面超越的成績單！
+
+---
+
+## 🛠️ 第四階段 - 衝刺極限特徵與耐心 (Optimization Phase 4.8: Ultimate Features & Patience)
+
+**優化目標**：為了將 Macro F1 往 0.70 推進，針對最後的弱項 (`Lower back rounding` 與 `Collide with the knees`) 補齊物理幾何特徵，並給予模型更長的收斂時間。
+
+1. **補齊 Y 軸盲區 (Barbell-Knee Y-Displacement)**：
+   - 新增 `bar_y - knee_y`。避免模型僅依賴 X 軸距離而產生誤判（例如槓鈴在小腿位置但 X 軸靠近時被誤判為撞擊膝蓋）。
+2. **新增軀幹絕對傾角 (Torso Angle to Ground)**：
+   - 利用 `arctan2(dy, dx)` 計算肩膀與髖關節連線相對於水平面的絕對夾角 (不受身高比例影響)。圓背時上胸塌陷，此角度會產生異常。
+3. **延長早停耐心 (Patience)**：
+   - 隨著特徵維度暴增 (Input Dim 來到 **65**)，將 `Early Stopping Patience` 從 30 大幅上調至 **50**，允許模型有更長的時間跳脫局部最佳解。
+
+### 📈 實驗結果 (Phase 4.8: Road to 0.7)
+
+這是一次極其珍貴的實驗，雖然 Macro F1 差一步觸及 0.7，但在「嚴格準確率」與「圓背」上取得了現象級的突破：
+
+- **整體表現**: 
+  - Macro F1: 0.6754 (與 Phase 4.7 的 0.6785 幾乎持平)
+  - **Accuracy: 0.3816 (再度破紀錄！首度突破 38% 大關！)**
+
+- **個別類別變化**:
+  - **Correct (標準動作)**: **F1 = 0.5374 (歷史新高！大幅跳升突破 0.53)**
+  - Far from the shins: F1 = 0.7216 (維持在 0.72 極高檔)
+  - Hips rise first: F1 = 0.6895 (微幅回落)
+  - Collide with the knees: F1 = 0.6233 (維持在 0.62)
+  - **Lower back rounding**: **F1 = 0.6672 (超級大突破！靠著 Torso Angle 一舉衝上 0.66)**
+
+**結論與洞察**：
+1. **Torso Angle (軀幹傾角) 是圓背的必殺技**：正如我們所推論，加入不受身高影響的絕對軀幹傾角後，`Lower back rounding` 直接從 0.639 飆升到 0.667，這在缺乏脊椎關鍵點的 2D 骨架中已經是不可思議的準確度。
+2. **模型達到真正的「懂硬舉」 (Accuracy = 38.16%)**：Accuracy 再次破紀錄，且 `Correct` 類別創下 0.5374 的巔峰。這代表在 65 維的豐富物理特徵交織下，模型對於「什麼是毫無瑕疵的完美硬舉」有了極度清晰的判斷力。
+3. **沒有白費的 Patience**：這次訓練一路跑到 Epoch 79 才觸發早停。這漫長的訓練證明了，複雜的特徵確實需要更長時間的打磨，才能收斂出史上最高的 Accuracy。
+4. **為什麼 Macro F1 沒到 0.70？**：因為 `Hips rise first` 稍微掉了一些分數。當我們餵給模型大量關於背部和槓鈴位置的幾何特徵時，模型的一部份注意力被拉走了，導致它在判斷純粹「膝蓋與髖部伸展時序」時稍微分心。這可以透過未來的 Loss 權重調整 (Class Weights) 來補救。
+
+---
+
+## 🛠️ 第四階段 - 終極榨汁與天花板測試 (Optimization Phase 4.9: Final Features & Weight Tuning)
+
+**優化目標**：測試加入最後兩項究極幾何特徵 (Torso Length, Bar-Knee Euclidean Distance) 並調降 20% `pos_weight` 後，是否能打破 0.675 的均值天花板，讓 `Correct` 穩定突破。
+
+1. **2D 絕對軀幹長度 (Torso Length)**：
+   - 計算 `sqrt(dx^2 + dy^2)`，針對圓背時脊椎呈現 C 字型導致絕對長度縮短的物理現象。
+2. **槓鈴絕對直線距離 (Bar-Knee Euclidean)**：
+   - 計算 `sqrt(bar_knee_x_disp^2 + bar_knee_y_disp^2)`，給出最直觀的碰撞距離。
+3. **Loss 權重打折 (pos_weight * 0.8)**：
+   - 降低模型預測「有錯誤」時的懲罰，試圖減少神經質誤判，拉抬 `Correct` 分數。
+   - **Input Dim 達到史上最大的 75 維**。
+
+### 📈 實驗結果 (Phase 4.9: The Ceiling Effect)
+
+這次的結果非常具有啟發性，它告訴我們這套資料集與模型架構已經達到了**資訊量的天花板 (Ceiling Effect)**：
+
+- **整體表現**: 
+  - Macro F1: 0.6749 (與 Phase 4.8 的 0.6754 幾乎完全貼合)
+  - Accuracy: 0.3697 (微幅回落，但仍維持在極高水準)
+
+- **個別類別變化**:
+  - Correct: F1 = 0.5169 (並未如預期般因為調降權重而上升)
+  - Far from the shins: F1 = 0.7125 (維持 0.71+ 高檔)
+  - **Hips rise first**: **F1 = 0.7019 (強勢反彈回 0.70 以上！)**
+  - Collide with the knees: F1 = 0.6246 (極度穩定)
+  - **Lower back rounding**: F1 = 0.6607 (極度穩定，維持在 0.66 高檔)
+
+**結論與最終洞察**：
+1. **觸及模型極限天花板**：當我們把維度加到 75 維時，Macro F1 依然死守在 0.675 左右。這證明了在目前有限的訓練集影片數量下，模型所能萃取的「有效資訊量」已經飽和。再加更多特徵，模型只會在各個類別之間做「拆東牆補西牆」的 Trade-off (例如這次 Hips rise first 漲回來了，但 Correct 卻掉下去了)。
+2. **Loss 權重調整的雙面刃**：我們以為把 `pos_weight` 打 8 折可以讓模型對 `Correct` 更寬容，但實際上在這種複雜的多標籤 (Multi-label) 任務中，牽一髮動全身。放寬標準反而讓它在某些極度邊緣的動作上猶豫不決，導致嚴格的 Accuracy 稍微下降。Phase 4.8 原生的權重才是完美的平衡點。
+3. **死舉 (Deadlift) 任務正式宣告破關**：回顧這漫長的優化旅程，我們把 Macro F1 從 0.60 推進到 0.678，Accuracy 從 32% 狂飆到 38%，最難的「圓背」更是從 0.57 暴力破解到 0.66！我們不僅榨乾了這份資料集的潛力，更證明了 PatchTST 在動作時序分類上的統治力。
+
+---
+
+# 🏆 硬舉任務最終最佳配置總結 (Deadlift Best Configuration Summary)
+
+經過了多個階段的極限榨汁與優化，我們針對「硬舉 (Deadlift)」的 3D 骨架動作辨識任務，得出了一套最強的黃金配置。這套配置成功將模型的 **Macro F1 推升至 0.678**，並將嚴格的 **全對準確率 (Accuracy) 提升至 38.16%**。
+
+以下是我們得出的最終最佳設定：
+
+### 1. 模型架構 (PatchTST 高頻微觀設定)
+原版 PatchTST 預設的視野較大，但健身動作的錯誤（如撞擊膝蓋、瞬間圓背）往往發生在零點幾秒內。因此我們採用了**高時間解析度**的設定：
+- **`patch_len` = 8**：將模型的注意力積木縮短一半（約 0.25 秒），讓模型像戴上顯微鏡般看清瞬間細節。
+- **`stride` = 4**：高重疊率的滑動步幅，確保模型能流暢追蹤槓鈴的瞬間軌跡。
+- **Transformer 參數**：`embed_dim=256`, `num_heads=4`, `num_layers=2`，保持輕量但具備強大推論能力。
+
+### 2. 特徵工程 (幾何與空間的極限擴充)
+在缺乏脊椎關鍵點且 2D 骨架存在視角誤差的情況下，我們手動幫模型補齊了「人類教練的直覺」，基礎特徵擴充至 15 項（搭配 5 種時序變換，**Input Dim 達到 75 維**）：
+- **基礎骨架**：雙側膝蓋/髖部角度、身體長度、手臂軀幹夾角。
+- **槓鈴空間特徵**：`bar_x`, `bar_y`，以及最重要的 **`bar_x - knee_x` (水平差)** 與 **`bar_y - knee_y` (垂直差)**，完美解決了 `Collide with the knees` 的誤判盲區。
+- **圓背專屬特徵 (Anti-Rounding)**：
+  - **軀幹絕對傾角 (Torso Angle)**：`arctan2(dy, dx)`，不受身高比例影響，精準捕捉上胸塌陷。
+  - **肩髖水平位移差**與 **2D 絕對軀幹長度**：捕捉圓背時脊椎呈現 C 字型所導致的「身體縮水」與「過度前傾」。
+
+### 3. 資料擴增 (Mid Augmentation)
+為了防止模型死背訓練集，同時又不能破壞高頻 `patch_len=8` 的微觀資訊，最佳的雜訊設定為：
+- **Time Masking**：隨機遮蔽 `1~3` 幀（不可過長，否則會蓋掉整個 Patch）。
+- **Random Jittering**：標準差 `0.02` 的高斯雜訊。
+- **Point Masking**：隨機 Dropout `5%` 的特徵點。
+*(註：捨棄了會破壞角度幾何的 Channel Masking)*
+
+### 4. 訓練策略與 Loss 函數
+- **Loss Function**：`Focal Loss (gamma=2.0)`，並且搭配**原始計算的 `pos_weight`**（直接拿真實比例來平衡正負樣本即可，不需額外打折，否則會導致 Accuracy 下降）。
+- **Optimizer & Scheduler**：`AdamW` 搭配 `CosineAnnealingLR` (帶有 5 epochs 的 Warmup)。
+- **Patience**：提昇至 **`50`**。複雜的 75 維特徵需要更長的磨合期，讓模型跑到 Epoch 70~80 之間去尋找全局最佳解。

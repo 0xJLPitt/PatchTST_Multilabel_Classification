@@ -309,7 +309,7 @@ if __name__ == "__main__":
         fig_path = os.path.join(txt_dir, f"train_results_fold{i}.png")
         os.makedirs(txt_dir, exist_ok=True)
 
-        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, patience=30)
+        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, patience=50)
 
         avg_loss, f1, avg_time_per_sample, accuracy, class_f1 = test_model_with_path_tracking(
             model, test_loader, criterion, txt_dir, save_path, num_classes, sport=args.sport

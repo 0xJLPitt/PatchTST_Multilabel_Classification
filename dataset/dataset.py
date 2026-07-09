@@ -84,11 +84,18 @@ class Datasubset(Dataset):
             scale = 0.9 + 0.2 * torch.rand(1).item()
             x = x * scale
             
-            # 2. Random Jittering (std=0.01)
-            noise = torch.randn_like(x) * 0.01
+            # 2. Random Jittering (稍微調弱：std=0.03 -> 0.02)
+            noise = torch.randn_like(x) * 0.02
             x = x + noise
             
-            # 3. Random Masking (5% dropout)
+            # 3. Time Masking (配合更小的 patch_len=8，將遮蔽時間縮小至隨機 1~3 個 frame)
+            seq_len, dim = x.shape
+            mask_len = torch.randint(1, 4, (1,)).item()
+            if seq_len > mask_len:
+                start = torch.randint(0, seq_len - mask_len, (1,)).item()
+                x[start:start+mask_len, :] = 0.0
+
+            # 4. Point Masking (隨機點 dropout 降回 5%)
             mask = (torch.rand_like(x) > 0.05).float()
             x = x * mask
         return x, y, true_idx

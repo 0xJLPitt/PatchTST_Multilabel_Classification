@@ -27,8 +27,8 @@ class PatchEmbedding(nn.Module):
         return x
 
 class PatchTSTClassifier(nn.Module):
-    def __init__(self, input_dim, num_classes, input_len, patch_len=16, 
-                 embed_dim=256, num_heads=4, num_layers=2, dropout=0.3, stride=8):
+    def __init__(self, input_dim, num_classes, input_len, patch_len=8, 
+                 embed_dim=256, num_heads=4, num_layers=2, dropout=0.3, stride=4):
         super().__init__()
         
         # 早期融合：傳入真實的 input_dim (例如 40)
