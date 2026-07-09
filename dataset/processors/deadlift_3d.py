@@ -147,11 +147,24 @@ def generate_csv(dataset_dir, output_csv):
                                     features_bar_arr = df_bar.iloc[:, [1, 2]].values
                                 else:
                                     features_bar_arr = np.zeros((len(df_3d_filtered), 2))
+                                    
+                                # Add knee_x from 2D_L
+                                coord_2dl_file = os.path.join(set_path, "Coordinate", "2D_L", f"clip_{clip_idx}_2d.csv")
+                                if os.path.exists(coord_2dl_file):
+                                    df_coord = pd.read_csv(coord_2dl_file)
+                                    # left knee x is 'x13'
+                                    knee_x_arr = df_coord['x13'].values.reshape(-1, 1)
+                                else:
+                                    knee_x_arr = np.zeros((len(df_3d_filtered), 1))
                                 
                                 # Merge frame by frame
                                 # Make sure they have the same length
-                                min_len = min(len(df_3d_filtered), len(features_bar_arr))
-                                merged_features = np.concatenate([df_3d_filtered.values[:min_len], features_bar_arr[:min_len]], axis=1)
+                                min_len = min(len(df_3d_filtered), len(features_bar_arr), len(knee_x_arr))
+                                
+                                # Calculate displacement (bar_x - knee_x)
+                                bar_knee_disp = features_bar_arr[:min_len, 0:1] - knee_x_arr[:min_len]
+                                
+                                merged_features = np.concatenate([df_3d_filtered.values[:min_len], features_bar_arr[:min_len], bar_knee_disp], axis=1)
                                 
                                 from dataset.tools.Deadlift_tool.utils import interpolate_features
                                 from dataset.tools.Deadlift_tool.data_split import process_delta, process_delta_ratio, process_zscore, normalize_to_neg1_1

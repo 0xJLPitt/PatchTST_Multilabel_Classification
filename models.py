@@ -3,20 +3,27 @@ import torch.nn as nn
 import torch
     
 class PatchEmbedding(nn.Module):
-    def __init__(self, patch_len, embed_dim, stride):
+    def __init__(self, patch_len, embed_dim, stride, input_dim):
         super().__init__()
-        # 在 Channel Independence 模式下，輸入維度永遠是 1
-        self.proj = nn.Linear(patch_len * 1, embed_dim)
+        # 早期融合：將同一個 patch 內的所有 Channel (input_dim) 拉平一起投影
+        self.proj = nn.Linear(patch_len * input_dim, embed_dim)
         self.stride = stride
         self.patch_len = patch_len
+        self.input_dim = input_dim
 
     def forward(self, x):
-        # x shape: (B*C, T, 1)
-        B_C, T, _ = x.shape
+        # x shape: (B, T, C)
+        B, T, C = x.shape
+        # unfold 在時間軸(dim=1)上切 patch
         x = x.unfold(dimension=1, size=self.patch_len, step=self.stride) 
-        # x shape: (B*C, num_patches, 1, patch_len)
-        x = x.reshape(B_C, -1, self.patch_len) # 展平 patch
-        x = self.proj(x) # (B*C, num_patches, embed_dim)
+        # x shape: (B, num_patches, C, patch_len)
+        
+        # 轉換為 (B, num_patches, patch_len, C) 並在最後一維拉平
+        x = x.permute(0, 1, 3, 2).contiguous()
+        x = x.view(B, -1, self.patch_len * C) # (B, num_patches, patch_len * C)
+        
+        # 投影至 embed_dim
+        x = self.proj(x) # (B, num_patches, embed_dim)
         return x
 
 class PatchTSTClassifier(nn.Module):
@@ -24,8 +31,8 @@ class PatchTSTClassifier(nn.Module):
                  embed_dim=256, num_heads=4, num_layers=2, dropout=0.3, stride=8):
         super().__init__()
         
-        # 修正點：這裡傳入 1，因為每個通道獨立處理
-        self.patch_embed = PatchEmbedding(patch_len, embed_dim, stride)
+        # 早期融合：傳入真實的 input_dim (例如 40)
+        self.patch_embed = PatchEmbedding(patch_len, embed_dim, stride, input_dim)
         
         num_patches = (input_len - patch_len) // stride + 1
         self.pos_embed = nn.Parameter(torch.randn(1, num_patches, embed_dim))
@@ -36,41 +43,36 @@ class PatchTSTClassifier(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
 
-        # 升級 Late Fusion：兩層 MLP 取代單層 Linear，讓模型學習 Channel 間的非線性關聯
+        # 輕量化分類器：Transformer 內部已完美融合空間關係，分類器只需看 embed_dim (256維)
         self.classifier = nn.Sequential(
-            nn.LayerNorm(input_dim * embed_dim),
+            nn.LayerNorm(embed_dim),
             nn.Dropout(dropout),
-            nn.Linear(input_dim * embed_dim, 1024),
+            nn.Linear(embed_dim, 128),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(1024, num_classes)
+            nn.Linear(128, num_classes)
         )
 
     def forward(self, x):
         # x: (B, T, C)
         B, T, C = x.shape
         
-        # --- 論文核心：Channel Independence ---
-        # 1. 重排維度: (B, T, C) -> (B, C, T) -> (B*C, T, 1)
-        x = x.permute(0, 2, 1).reshape(B * C, T, 1)
+        # --- 打破 Channel Independence，改為 Early Fusion ---
+        # 不需要把通道拆開，直接將原始 (B, T, C) 送入 PatchEmbedding
         
-        # 2. Patching & Embedding
-        x = self.patch_embed(x)  # (B*C, num_patches, embed_dim)
+        # 1. Patching & Embedding
+        x = self.patch_embed(x)  # (B, num_patches, embed_dim)
         
-        # 3. Transformer
+        # 2. Transformer
         x = x + self.pos_embed
         x = self.transformer(x)
         
-        # 4. 聚合資訊 (Readout)
-        # 做法 A：時間軸平均池化 (Mean Pooling) - 在動作識別上通常更為穩健
-        x = x.mean(dim=1)  # (B*C, embed_dim)
+        # 3. 聚合資訊 (Readout)
+        # 時間軸平均池化 (Mean Pooling)
+        x = x.mean(dim=1)  # (B, embed_dim)
         
-        # 做法 B：原論文做法，只取最後一個 Patch 的特徵
-        # x = x[:, -1, :]  # (B*C, embed_dim)
+        # 不需要重新 reshape，因為 Batch Size 維度一直都是 B
         
-        # 5. 還原維度並拉平為 [B, C * embed_dim]
-        x = x.view(B, C, -1).reshape(B, -1)
-        
-        # 6. 分類層
+        # 4. 分類層
         return self.classifier(x)
     

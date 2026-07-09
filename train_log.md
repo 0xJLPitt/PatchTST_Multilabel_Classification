@@ -142,20 +142,6 @@ Data Augmentation 的雙面刃 (雜訊可能太大了) 我們對 3D 座標加入
 3. **移除會破壞特徵的 Jittering 雜訊**：
    已經移除 `dataset.py` 中 0.02 的隨機高斯雜訊，避免特徵遭到破壞，保護 `Correct` (標準動作) 的微小特徵。
 
----
-
-## 🛠️ 第 2.5 階段模型優化紀錄 (Optimization Phase 2.5: 最強資料增強防護網)
-
-**優化目標**：解決第二階段發現的「嚴重過度擬合 (Overfitting)」，在維持 Channel Independence 架構且具備超大容量 MLP 分類器的情況下，加入強力干擾，強迫模型無法死背訓練集特徵。
-
-1. **隨機縮放 (Random Scaling)**：
-   每次訓練時隨機將 3D 座標乘上 `0.9` 到 `1.1` 的常數。這能在物理意義上模擬「高矮胖瘦不同的受試者」，強迫模型專注於動作軌跡，而非特定手腳長度的絕對座標。
-2. **溫和雜訊 (Jittering = 0.01)**：
-   加回高斯雜訊，但為保護特徵將標準差調降為 `0.01`。這能確保同一個動作每次出現的座標都在微小抖動，讓模型無法「精確記憶」數值。
-3. **隨機遮蔽 (Random Masking / Dropout 5%)**：
-   以 5% 的機率隨機將某些座標數值歸零。這能模擬攝影機視角發生的「視覺遮蔽（如手被擋住）」，強迫模型必須依賴其他關節進行綜合判斷，杜絕依賴單一關節的捷徑學習。
-
-
 Epoch 68, Train Loss: 0.0257, Train F1: 0.9670, Val F1: 0.6295, LR: 0.000025
 ⏹️ Early Stopping Triggered
 Fold 0 Test F1: 0.6221, Accuracy: 0.3111, cost 1.2988237070877992e-05 sec
@@ -177,3 +163,78 @@ Fold 0: Macro F1 = 0.6221, Accuracy: 0.3111, cost time = 0.000013 sec
   - Lower back rounding: 0.6064 ± 0.0000
 🏆 Best F1: 0.6221 from Fold 0
 📁 Best model saved at: ./models/deadlift/TST_Deadlift_3D/phase2_true_patchtst/PatchTST_model_fold0.pth
+---
+
+## 🛠️ 第 2.5 階段模型優化紀錄 (Optimization Phase 2.5: 最強資料增強防護網)
+
+**優化目標**：解決第二階段發現的「嚴重過度擬合 (Overfitting)」，在維持 Channel Independence 架構且具備超大容量 MLP 分類器的情況下，加入強力干擾，強迫模型無法死背訓練集特徵。
+
+1. **隨機縮放 (Random Scaling)**：
+   每次訓練時隨機將 3D 座標乘上 `0.9` 到 `1.1` 的常數。這能在物理意義上模擬「高矮胖瘦不同的受試者」，強迫模型專注於動作軌跡，而非特定手腳長度的絕對座標。
+2. **溫和雜訊 (Jittering = 0.01)**：
+   加回高斯雜訊，但為保護特徵將標準差調降為 `0.01`。這能確保同一個動作每次出現的座標都在微小抖動，讓模型無法「精確記憶」數值。
+3. **隨機遮蔽 (Random Masking / Dropout 5%)**：
+   以 5% 的機率隨機將某些座標數值歸零。這能模擬攝影機視角發生的「視覺遮蔽（如手被擋住）」，強迫模型必須依賴其他關節進行綜合判斷，杜絕依賴單一關節的捷徑學習。
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6474, Accuracy: 0.3118, cost time = 0.000013 sec
+  - Correct: F1 = 0.3904
+  - Far from the shins: F1 = 0.6916
+  - Hips rise first: F1 = 0.7267
+  - Collide with the knees: F1 = 0.5590
+  - Lower back rounding: F1 = 0.6121
+
+📊 Average F1 Score: 0.6474 ± 0.0000
+  Average F1 Score per Class:
+  - Correct: 0.3904 ± 0.0000
+  - Far from the shins: 0.6916 ± 0.0000
+  - Hips rise first: 0.7267 ± 0.0000
+  - Collide with the knees: 0.5590 ± 0.0000
+  - Lower back rounding: 0.6121 ± 0.0000
+🏆 Best F1: 0.6474 from Fold 0
+📁 Best model saved at: ./models/deadlift/TST_Deadlift_3D/phase2.5_aug/PatchTST_model_fold0.pth
+
+---
+
+## 🛠️ 第三階段模型優化紀錄 (Optimization Phase 3: Early Fusion 終極型態)
+
+**優化目標**：解決 PatchTST 原始架構 (Channel Independence) 在骨架識別任務上天生缺乏空間幾何關係的缺陷，並藉由大幅削減分類器參數來根治過度擬合 (Overfitting)。
+
+1. **早期融合 (Early Fusion)**：
+   打斷將 40 個特徵切分成獨立時間線的操作。現在，在裁切 Patch 的時候，每一塊積木都會**同時包含那一瞬間全身 40 個空間特徵**，讓 Transformer 的 Attention 機制在底層運算時就能直接融合出各關節間的幾何角度與相對關係。
+2. **極致輕量化分類器 (根治 Overfitting)**：
+   由於不再需要於最後一層重新組合 40 個平行的宇宙，我們直接把 MLP 分類器的輸入維度從可怕的 `10,240` 維壓縮回 `256` 維。這不僅去除了運算贅肉，更改將分類器總參數量從高達 **1,000 萬個，瞬間瘦身至約 3.3 萬個**！這讓模型不僅更具備空間直覺，且從物理/數學層面斷絕了死背資料的可能性。
+
+✅ **F1 scores from each Fold:**
+Fold 0: Macro F1 = 0.6634, Accuracy: 0.3400, cost time = 0.000013 sec
+  - Correct: F1 = 0.4289
+  - Far from the shins: F1 = 0.7079
+  - Hips rise first: F1 = 0.7345
+  - Collide with the knees: F1 = 0.5719
+  - Lower back rounding: F1 = 0.6393
+
+📊 **Average F1 Score:** 0.6634 ± 0.0000
+  Average F1 Score per Class:
+  - Correct: 0.4289 ± 0.0000
+  - Far from the shins: 0.7079 ± 0.0000
+  - Hips rise first: 0.7345 ± 0.0000
+  - Collide with the knees: 0.5719 ± 0.0000
+  - Lower back rounding: 0.6393 ± 0.0000
+🏆 **Best F1:** 0.6634 from Fold 0
+📁 **Best model saved at:** `./models/deadlift/TST_Deadlift_3D/phase3_early_fusion/PatchTST_model_fold0.pth`
+
+
+---
+
+## 🛠️ 第四階段模型優化紀錄 (Optimization Phase 4: Feature Engineering - 距離特徵)
+
+**優化目標**：針對硬舉 (Deadlift) 常見的錯誤如 `Far from the shins` (槓鈴離小腿太遠) 與 `Collide with the knees` (槓鈴撞擊膝蓋)，直接提供給模型相關的物理特徵，降低模型從抽象的關節角度與 2D 點自行推算幾何關係的難度。
+
+1. **新增特徵 - 槓鈴與膝關節 X 軸位移 (Barbell-Knee X-Displacement)**：
+   - 讀取 2D 追蹤資料中左膝 (x13) 的 X 座標。
+   - 計算 `bar_x - knee_x` 得到水平位移。
+   - 由於此基礎特徵會一併進入後續的 $5$ 種擴增處理（原始、一階導數、二階導數、Z-score、差值比率），模型的整體輸入維度 (Input Dim) 由 `40` 維擴增至 `45` 維。
+   - **預期效果**：能顯著提升模型判斷槓鈴與身體前後相對關係的能力，進而改善 `Far from the shins` 等錯誤的 F1 Score。
+
+**接下來的步驟**：
+- 執行 `dataset/processors/deadlift_3d.py` 重新生成 `deadlift_dataset_3d.csv` (維度更新為 45)。
+- 執行 `python PatchTST_train.py --sport deadlift --type 3d --subject_isolated --num_workers 4 --tag phase4_distance_feature` 訓練並驗證結果。
