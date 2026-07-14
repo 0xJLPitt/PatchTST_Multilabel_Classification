@@ -17,3 +17,19 @@
 * **擁有上帝視角的 Transformer**：當這些「全息 Patch」進入 Transformer 時，Attention 機制終於開了天眼！它在運算任何時間點時，都在底層直接融合了所有關節的相對幾何位置。
 * **極致輕量化的分類器 (解決死背)**：因為 Transformer 已經在內部完美處理了所有空間關係，它輸出的結論只需濃縮在精鍊的 `256` 維裡（不再需要把 40 個通道拼接成 10,240 維）。
 * **參數大甩賣**：最後一層 MLP 的輸入從 10,240 銳減到 256。分類器的參數會從一千萬個，斷崖式下跌到只剩約 **3.3 萬**個！
+
+
+
+Proposed Changes
+[MODIFY] models.py
+1. Redesign PatchEmbedding (Early Fusion)
+Current: Unfolds (B*C, T, 1) into (B*C, num_patches, patch_len), projecting patch_len * 1 into embed_dim.
+New: We will unfold the raw input (B, T, C) into (B, num_patches, patch_len, C). We then flatten the spatial and temporal dimensions of the patch into patch_len * C, and project it directly to embed_dim using nn.Linear(patch_len * C, embed_dim).
+2. Refactor PatchTSTClassifier
+Remove Channel Separation: Delete the lines x = x.permute(0, 2, 1).reshape(B * C, T, 1) entirely. The input stays as batch size B.
+Positional Embedding: Since the batch size is no longer artificially inflated to B*C, the positional embedding shape remains unchanged (1, num_patches, embed_dim), but it now correctly applies to the true sequence length without repeating across channels.
+Remove Late Fusion Bottleneck: Delete x = x.view(B, C, -1).reshape(B, -1). The output from the mean pooling will now naturally be (B, embed_dim).
+Drastic Classifier Weight Reduction:
+Change the classifier input from input_dim * embed_dim (which was 10,240) down to just embed_dim (256).
+The new MLP will be: Linear(256, 128) -> GELU -> Dropout -> Linear(128, num_classes).
+Parameter drop: The classifier drops from ~10,485,000 parameters down to ~33,400 parameters! This makes the model incredibly fast, lightweight, and mathematically immune to the extreme overfitting we saw earlier.

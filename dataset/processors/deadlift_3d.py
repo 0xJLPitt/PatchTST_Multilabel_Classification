@@ -181,13 +181,21 @@ def generate_csv(dataset_dir, output_csv):
                                 bar_knee_disp = features_bar_arr[:min_len, 0:1] - knee_x_arr[:min_len]
                                 bar_knee_y_disp = features_bar_arr[:min_len, 1:2] - knee_y_arr[:min_len]
                                 
+                                # Calculate angular velocity difference (hip vs knee)
+                                left_knee_angle = df_3d.iloc[:, 1].values.reshape(-1, 1)
+                                left_hip_angle = df_3d.iloc[:, 2].values.reshape(-1, 1)
+                                left_knee_vel = np.gradient(left_knee_angle, axis=0)
+                                left_hip_vel = np.gradient(left_hip_angle, axis=0)
+                                hip_knee_vel_diff = left_hip_vel - left_knee_vel
+
                                 merged_features = np.concatenate([
                                     df_3d_filtered.values[:min_len], 
                                     features_bar_arr[:min_len], 
                                     bar_knee_disp,
                                     bar_knee_y_disp,
                                     shoulder_hip_disp[:min_len],
-                                    torso_angle[:min_len]
+                                    torso_angle[:min_len],
+                                    hip_knee_vel_diff[:min_len]
                                 ], axis=1)
                                 
                                 from dataset.tools.Deadlift_tool.utils import interpolate_features

@@ -129,10 +129,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--sport', type=str, choices=['benchpress', 'deadlift'])
     parser.add_argument('--type', type=str, choices=['2d', '3d', '2D', '3D'], default='3D', help='Feature type (2D or 3D) for deadlift')
-    parser.add_argument('--subject_isolated', action='store_true', help='Whether to split the dataset by subject')
+    parser.add_argument('--subject_isolated', action='store_true', help='[Deprecated] Use --split_mode instance_stratified')
+    parser.add_argument('--split_mode', type=str, choices=['subject_exclusive', 'instance_stratified', 'clip_random'], default='instance_stratified', help='Data split mode')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of subset workers for DataLoader')
     parser.add_argument('--tag', type=str, help='Tag for save_dir, default is your data argumentation') # spawner, ...
+    parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads in Transformer')
+    parser.add_argument('--focus_hips_rise', type=float, default=1.0, help='Weight multiplier for Hips rise first class loss')
+    parser.add_argument('--max_epochs', type=int, default=150, help='Max training epochs')
     args = parser.parse_args()
+    
+    if args.subject_isolated:
+        args.split_mode = 'instance_stratified'
+        
     seeds = [42] # 2023, 7, 88, 100, 999
     
     from dataset import *
@@ -154,7 +162,36 @@ if __name__ == "__main__":
     
     
     dataset_folds = []
-    if args.subject_isolated:
+    if args.split_mode == 'subject_exclusive':
+        from collections import defaultdict
+        subject_indices = defaultdict(list)
+        for idx in range(len(full_dataset)):
+            sub = full_dataset.subjects[idx]
+            subject_indices[sub].append(idx)
+            
+        unique_subs = sorted(list(subject_indices.keys()))
+        random.seed(42)
+        random.shuffle(unique_subs)
+        
+        n_sub = len(unique_subs)
+        tr_end = max(1, int(0.7 * n_sub))
+        vl_end = max(tr_end + 1, int(0.8 * n_sub))
+        
+        train_subs = unique_subs[:tr_end]
+        val_subs = unique_subs[tr_end:vl_end]
+        test_subs = unique_subs[vl_end:]
+        
+        train_indices = []
+        valid_indices = []
+        test_indices = []
+        for sub in train_subs: train_indices.extend(subject_indices[sub])
+        for sub in val_subs: valid_indices.extend(subject_indices[sub])
+        for sub in test_subs: test_indices.extend(subject_indices[sub])
+            
+        dataset_folds = [(train_indices, valid_indices, test_indices)]
+        num_folds = 1
+
+    elif args.split_mode == 'instance_stratified':
         train_indices = []
         valid_indices = []
         test_indices = []
@@ -254,7 +291,7 @@ if __name__ == "__main__":
                 
         dataset_folds = [(train_indices, valid_indices, test_indices)]
         num_folds = 1
-    else:
+    elif args.split_mode == 'clip_random':
         num_folds = len(seeds)
         for se in seeds:
             random.seed(se)
@@ -298,18 +335,21 @@ if __name__ == "__main__":
         neg_counts = len(t_idx) - pos_counts
         pos_counts[pos_counts == 0] = 1.0
         pos_weight = (neg_counts / pos_counts).to(device)
+        
+        if args.sport == 'deadlift' and args.focus_hips_rise != 1.0:
+            pos_weight[1] *= args.focus_hips_rise
 
-        model = PatchTSTClassifier(input_dim, num_classes, input_len).to(device)
+        model = PatchTSTClassifier(input_dim, num_classes, input_len, num_heads=args.num_heads).to(device)
         optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
         criterion = FocalLoss(gamma=2.0, pos_weight=pos_weight)
-        scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=100, min_lr_ratio=0.0)
+        scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=args.max_epochs, min_lr_ratio=0.0)
 
         save_path = os.path.join(save_dir, f"PatchTST_model_fold{i}.pth")
         txt_dir = os.path.join(save_dir, f"PatchTST_model_fold{i}_results")
         fig_path = os.path.join(txt_dir, f"train_results_fold{i}.png")
         os.makedirs(txt_dir, exist_ok=True)
 
-        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, patience=50)
+        train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=args.max_epochs, patience=50)
 
         avg_loss, f1, avg_time_per_sample, accuracy, class_f1 = test_model_with_path_tracking(
             model, test_loader, criterion, txt_dir, save_path, num_classes, sport=args.sport

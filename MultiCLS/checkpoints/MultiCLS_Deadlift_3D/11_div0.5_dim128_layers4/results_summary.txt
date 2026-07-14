@@ -1,0 +1,20 @@
+Total parameters: 2575876
+Trainable parameters: 2575876
+
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6747, Accuracy: 0.3638, cost time = 0.000020 sec
+  - Correct: F1 = 0.4521
+  - Far from the shins: F1 = 0.7202
+  - Hips rise first: F1 = 0.7066
+  - Collide with the knees: F1 = 0.6079
+  - Lower back rounding: F1 = 0.6641
+
+📊 Average F1 Score: 0.6747 ± 0.0000
+  Average F1 Score per Class:
+  - Correct: 0.4521 ± 0.0000
+  - Far from the shins: 0.7202 ± 0.0000
+  - Hips rise first: 0.7066 ± 0.0000
+  - Collide with the knees: 0.6079 ± 0.0000
+  - Lower back rounding: 0.6641 ± 0.0000
+🏆 Best F1: 0.6747 from Fold 0
+📁 Best model saved at: /home/pitt_huang/workspace/fitness_action_recognition/MultiCLS/checkpoints/MultiCLS_Deadlift_3D/11_div0.5_dim128_layers4/MultiCLS_model_fold0.pth
