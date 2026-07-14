@@ -1,4 +1,6 @@
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import torch
 import time
 import warnings
@@ -95,14 +97,14 @@ if __name__ == "__main__":
     
     from dataset import *
     if args.sport == 'deadlift':
-        data_path = os.path.join(os.getcwd(), 'data', 'deadlift_dataset.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset.csv')
         test_dataset = Dataset_Deadlift(data_path)
         output_dir = './models/deadlift/TST_Deadlift/12'
         save_dir = './models/deadlift/TST_Deadlift/12'
         num_classes = 4
         input_len = 110
     elif args.sport == 'benchpress':
-        data_path = os.path.join(os.getcwd(), 'data', 'benchpress_dataset.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'benchpress_dataset.csv')
         test_dataset  = Dataset_Benchpress(data_path)
         output_dir = './models/benchpress/TST_Benchpress/Exp1/no_wrist_press'
         save_dir = './models/benchpress/TST_Benchpress/9/no_wrist_press'

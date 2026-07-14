@@ -1,6 +1,8 @@
 from random import choice
 import torch
+import sys
 import os, json
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import warnings
 from sklearn.exceptions import UndefinedMetricWarning
 warnings.filterwarnings("ignore", category=UndefinedMetricWarning)
@@ -147,14 +149,14 @@ if __name__ == "__main__":
     
     if args.sport == 'deadlift':
         feat_type = args.type.upper()
-        data_path = os.path.join(os.getcwd(), 'data', f'deadlift_dataset_{args.type.lower()}.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'deadlift_dataset_{args.type.lower()}.csv')
         full_dataset = Dataset_Deadlift(data_path)
         save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
         num_classes = 4
         input_len = 110
         
     elif args.sport == 'benchpress':
-        data_path = os.path.join(os.getcwd(), 'data', 'benchpress_dataset.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'benchpress_dataset.csv')
         full_dataset = Dataset_Benchpress(data_path)
         save_dir = f'./models/benchpress/TST_Benchpress/{args.tag}'
         num_classes = 4
