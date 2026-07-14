@@ -1,0 +1,41 @@
+# Ignored Models
+
+The following model files (.pth) have been identified and are excluded from version control:
+
+- `./FCN-1D/checkpoints/FCN_Deadlift_3D/baseline/FCN1D_model_fold0.pth`
+- `./FCN-1D/checkpoints/FCN_Deadlift_3D/exp_deep/FCN1D_model_fold0.pth`
+- `./iTransformer/checkpoints/iTransformer_Deadlift_3D/1.1baseline/iTransformer_model_fold0.pth`
+- `./iTransformer/checkpoints/iTransformer_Deadlift_3D/1.2add_flatten_and_decrease_d_model/iTransformer_model_fold0.pth`
+- `./iTransformer/checkpoints/iTransformer_Deadlift_3D/1.3_decress_d_model_and_add_dropout/iTransformer_model_fold0.pth`
+- `./LSTM/checkpoints/LSTM_Deadlift_3D/baseline/LSTM_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/4.8with_clip_random/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/4.8with_subject_exclusive/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/None/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase1_focal_adamw/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase2.5_aug/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase2_true_patchtst/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase3_early_fusion/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.5_heavy_aug/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.6_advanced_features/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.7_patch8_stride4/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.8_road_to_0.7/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.8_test_hip_weight/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.8_test_longer_train/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.8_test_velocity_feature/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4.9_final_features/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase4_distance_feature/PatchTST_model_fold0.pth`
+- `./models/deadlift/TST_Deadlift_3D/phase5.0_ultimate/PatchTST_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/10_div0.5_dim256_layers2/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/11_div0.5_dim128_layers4/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/1_conv1d_proj/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/2_sinusoidal_pos/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/3_focal_loss/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/4_lower_complexity/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/5_div_weight_0.5/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/6_mean_aggregation/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/7_best_combination_no_aug/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/8_div0.5_lower_complexity_no_aug/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/9_div0.5_higher_complexity_no_aug/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/baseline/MultiCLS_model_fold0.pth`
+- `./MultiCLS/checkpoints/MultiCLS_Deadlift_3D/train_with_BCE/MultiCLS_model_fold0.pth`
