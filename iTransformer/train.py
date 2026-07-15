@@ -2,6 +2,7 @@ import sys
 import os
 # 加入父目錄以取得 dataset 與 tools
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'patchTST')))
 
 import argparse
 import random
@@ -18,7 +19,7 @@ from sklearn.metrics import f1_score
 # 引入原本的 Dataset 與工具
 from dataset import Dataset_Deadlift, Datasubset, Dataset_Benchpress
 from tools import compute_f1_score, write_result
-from PatchTST_test import test_model_with_path_tracking
+from patchTST.PatchTST_test import test_model_with_path_tracking
 from itransformer_model import iTransformer_Classification # 從當前目錄引入 iTransformer 模型
 
 class FocalLoss(torch.nn.Module):
@@ -152,6 +153,12 @@ if __name__ == "__main__":
     parser.add_argument('--dim_feedforward', type=int, default=512, help='Feedforward hidden size')
     parser.add_argument('--pooling', type=str, choices=['mean', 'flatten'], default='mean', help='Pooling strategy')
     
+    # Ablation hyperparameters
+    parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-2, help='Weight decay')
+    parser.add_argument('--gamma', type=float, default=2.0, help='Focal loss gamma')
+    parser.add_argument('--head_dim', type=int, default=-1, help='Classification head bottleneck dim. -1 for in_dim // 2')
+    
     args = parser.parse_args()
 
     print(f"--- iTransformer Training Settings ---")
@@ -264,6 +271,8 @@ if __name__ == "__main__":
         pos_counts[pos_counts == 0] = 1.0
         pos_weight = (neg_counts / pos_counts).to(device)
         
+        head_dim_val = args.head_dim if args.head_dim > 0 else None
+        
         # Initialize iTransformer
         model = iTransformer_Classification(
             seq_len=input_len, 
@@ -274,11 +283,12 @@ if __name__ == "__main__":
             dim_feedforward=args.dim_feedforward,
             num_classes=num_classes,
             dropout=args.dropout,
-            pooling=args.pooling
+            pooling=args.pooling,
+            head_dim=head_dim_val
         ).to(device)
         
-        optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
-        criterion = FocalLoss(gamma=2.0, pos_weight=pos_weight)
+        optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        criterion = FocalLoss(gamma=args.gamma, pos_weight=pos_weight)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=args.max_epochs, min_lr_ratio=0.0)
 
         save_path = os.path.join(save_dir, f"iTransformer_model_fold{i}.pth")

@@ -12,7 +12,8 @@ class iTransformer_Classification(nn.Module):
         dim_feedforward: int = 512, 
         num_classes: int = 1, 
         dropout: float = 0.1, 
-        pooling: str = 'mean'
+        pooling: str = 'mean',
+        head_dim: int = None
     ):
         """
         iTransformer model for binary/multi-label classification.
@@ -27,6 +28,7 @@ class iTransformer_Classification(nn.Module):
             num_classes: Number of output classes (1 for single binary classification).
             dropout: Dropout probability.
             pooling: Pooling method to aggregate variate features ('mean' or 'flatten').
+            head_dim: Bottleneck dimension in the classification head. Defaults to in_dim // 2.
         """
         super().__init__()
         
@@ -64,11 +66,13 @@ class iTransformer_Classification(nn.Module):
         else:
             raise ValueError("pooling must be 'flatten' or 'mean'")
             
+        h_dim = head_dim if head_dim is not None else in_dim // 2
+            
         self.output_layer = nn.Sequential(
-            nn.Linear(in_dim, in_dim // 2),
+            nn.Linear(in_dim, h_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(in_dim // 2, num_classes)
+            nn.Linear(h_dim, num_classes)
         )
             
     def forward(self, x):

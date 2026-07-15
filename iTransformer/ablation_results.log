@@ -1,0 +1,42 @@
+--- iTransformer Ablation Results ---
+Running: ab_ff_128
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --dim_feedforward 128 --tag ab_ff_128 --num_workers 4
+Fold 0 Test F1: 0.6570, Accuracy: 0.3474, cost 1.7225255590947185e-05 sec
+-----------------------------------
+Running: ab_ff_64
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --dim_feedforward 64 --tag ab_ff_64 --num_workers 4
+Fold 0 Test F1: 0.6678, Accuracy: 0.3571, cost 1.576483116914541e-05 sec
+-----------------------------------
+Running: ab_layer_1
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --num_layers 1 --tag ab_layer_1 --num_workers 4
+Fold 0 Test F1: 0.6581, Accuracy: 0.3318, cost 1.1363025939986718e-05 sec
+-----------------------------------
+Running: ab_head_2
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --nhead 2 --tag ab_head_2 --num_workers 4
+Fold 0 Test F1: 0.6696, Accuracy: 0.3660, cost 1.6001125751996623e-05 sec
+-----------------------------------
+Running: ab_wd_0.05
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --weight_decay 0.05 --tag ab_wd_0.05 --num_workers 4
+Fold 0 Test F1: 0.6618, Accuracy: 0.3051, cost 1.5521456598793035e-05 sec
+-----------------------------------
+Running: ab_wd_0.1
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --weight_decay 0.1 --tag ab_wd_0.1 --num_workers 4
+Fold 0 Test F1: 0.6649, Accuracy: 0.3385, cost 1.515081925310731e-05 sec
+-----------------------------------
+Running: ab_lr_5e4
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --lr 5e-4 --tag ab_lr_5e4 --num_workers 4
+Fold 0 Test F1: 0.6754, Accuracy: 0.3742, cost 1.5565175521612697e-05 sec
+-----------------------------------
+Running: ab_lr_1e3
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --lr 1e-3 --tag ab_lr_1e3 --num_workers 4
+Fold 0 Test F1: 0.6628, Accuracy: 0.3526, cost 1.5403751806586252e-05 sec
+-----------------------------------
+Running: ab_head_dim_128
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --head_dim 128 --tag ab_head_dim_128 --num_workers 4
+Fold 0 Test F1: 0.6777, Accuracy: 0.3675, cost 1.7224193592822013e-05 sec
+-----------------------------------
+Running: ab_head_dim_64
+CMD: /home/pitt_huang/.conda/envs/cu13/bin/python train.py --d_model 32 --dropout 0.5 --pooling flatten --head_dim 64 --tag ab_head_dim_64 --num_workers 4
+Fold 0 Test F1: 0.6743, Accuracy: 0.3786, cost 1.3212141675602177e-05 sec
+-----------------------------------
+All ablation experiments completed.

@@ -1,0 +1,20 @@
+Total parameters: 2543808
+Trainable parameters: 2543808
+
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6678, Accuracy: 0.3571, cost time = 0.000016 sec
+  - Correct: F1 = 0.4643
+  - Far from the shins: F1 = 0.7096
+  - Hips rise first: F1 = 0.7153
+  - Collide with the knees: F1 = 0.5994
+  - Lower back rounding: F1 = 0.6469
+
+📊 Average F1 Score: 0.6678 ± 0.0000
+  Average F1 Score per Class:
+  - Correct: 0.4643 ± 0.0000
+  - Far from the shins: 0.7096 ± 0.0000
+  - Hips rise first: 0.7153 ± 0.0000
+  - Collide with the knees: 0.5994 ± 0.0000
+  - Lower back rounding: 0.6469 ± 0.0000
+🏆 Best F1: 0.6678 from Fold 0
+📁 Best model saved at: /home/pitt_huang/workspace/fitness_action_recognition/iTransformer/checkpoints/iTransformer_Deadlift_3D/ab_ff_64/iTransformer_model_fold0.pth
