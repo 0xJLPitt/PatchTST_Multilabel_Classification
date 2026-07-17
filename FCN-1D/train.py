@@ -2,7 +2,7 @@ import sys
 import os
 # 加入父目錄以取得 dataset 與 tools
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'patchTST')))
 import argparse
 import random
 import json
@@ -18,7 +18,7 @@ from sklearn.metrics import f1_score
 # 引入原本的 Dataset 與工具
 from dataset import Dataset_Deadlift, Datasubset, Dataset_Benchpress
 from tools import compute_f1_score, write_result
-from PatchTST_test import test_model_with_path_tracking
+from patchTST.PatchTST_test import test_model_with_path_tracking
 from fcn_model import FCN1DClassifier # 從當前目錄(FCN-1D)的 fcn_model.py 引入
 
 class FocalLoss(torch.nn.Module):
@@ -142,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--dropout', type=float, default=0.3, help='Dropout rate')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for DataLoader')
     parser.add_argument('--kernel_sizes', type=str, default='7,5,3', help='Comma separated kernel sizes for FCN blocks')
+    parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use')
     args = parser.parse_args()
     
     # Parse kernel sizes
@@ -244,7 +245,7 @@ if __name__ == "__main__":
     all_f1_scores, cost_times, accuracies, all_class_f1_scores = [], [], [], []
 
     for i, (t_idx, v_idx, test_indices) in enumerate(dataset_folds):
-        train_dataset = Datasubset(full_dataset, t_idx, transform=True)
+        train_dataset = Datasubset(full_dataset, t_idx, transform=True, aug_type=args.augmentation)
         valid_dataset = Datasubset(full_dataset, v_idx, transform=False)
         test_dataset = Datasubset(full_dataset, test_indices, transform=False)
 

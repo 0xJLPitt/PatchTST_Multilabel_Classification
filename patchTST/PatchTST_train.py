@@ -138,6 +138,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads in Transformer')
     parser.add_argument('--focus_hips_rise', type=float, default=1.0, help='Weight multiplier for Hips rise first class loss')
     parser.add_argument('--max_epochs', type=int, default=150, help='Max training epochs')
+    parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use (can be separated by + for multiple)')
     args = parser.parse_args()
     
     if args.subject_isolated:
@@ -319,7 +320,7 @@ if __name__ == "__main__":
     all_class_f1_scores = []
 
     for i, (t_idx, v_idx, test_indices) in enumerate(dataset_folds):
-        train_dataset = Datasubset(full_dataset, t_idx, transform=True)
+        train_dataset = Datasubset(full_dataset, t_idx, transform=True, aug_type=args.augmentation)
         valid_dataset = Datasubset(full_dataset, v_idx, transform=False)
         test_dataset = Datasubset(full_dataset, test_indices, transform=False)
 

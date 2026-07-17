@@ -69,33 +69,66 @@ class Dataset_Deadlift(Dataset):
 
 
 class Datasubset(Dataset):
-    def __init__(self, dataset, indices, transform=False):
+    def __init__(self, dataset, indices, transform=False, aug_type=None):
         self.dataset = dataset
         self.indices = indices
         self.transform = transform
+        self.aug_type = aug_type
+        
+        self.augmented_x_list = []
+        if self.aug_type:
+            aug_types = self.aug_type.split('+')
+            print(f"Applying augmentations: {aug_types} (this might take a while)...")
+            # extract subset features
+            all_x = []
+            all_y = []
+            for i in self.indices:
+                x, y, _ = self.dataset[i]
+                all_x.append(x)
+                all_y.append(y)
+            X = torch.stack(all_x).numpy()
+            Y = torch.stack(all_y).numpy()
+            
+            import sys, os
+            ts_aug_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../ts_aug'))
+            if ts_aug_path not in sys.path:
+                sys.path.append(ts_aug_path)
+            from utils import augmentation
+            
+            for aug in aug_types:
+                if aug == "window_warping":
+                    X_aug = augmentation.window_warp(X)
+                elif aug == "jittering":
+                    X_aug = augmentation.jitter(X)
+                elif aug == "spawner":
+                    X_aug = augmentation.spawner(X, Y)
+                elif aug == "dtwwarp":
+                    X_aug = augmentation.random_guided_warp(X, Y)
+                elif aug == "shapedtw":
+                    X_aug = augmentation.random_guided_warp_shape(X, Y)
+                elif aug == "discdtw":
+                    X_aug = augmentation.discriminative_guided_warp(X, Y)
+                else:
+                    X_aug = X
+                self.augmented_x_list.append(torch.from_numpy(X_aug).float())
+            print(f"Augmentations {aug_types} applied successfully.")
 
     def __len__(self):
+        if self.aug_type:
+            return len(self.indices) * (1 + len(self.aug_type.split('+')))
         return len(self.indices)
 
     def __getitem__(self, idx):
-        x, y, true_idx = self.dataset[self.indices[idx]]
-        if self.transform:
-            # 1. Random Scaling (0.9 to 1.1)
-            scale = 0.9 + 0.2 * torch.rand(1).item()
-            x = x * scale
+        n = len(self.indices)
+        if self.aug_type:
+            if idx >= n:
+                aug_idx = (idx - n) // n
+                true_idx_offset = (idx - n) % n
+                true_idx = self.indices[true_idx_offset]
+                _, y, _ = self.dataset[true_idx]
+                x = self.augmented_x_list[aug_idx][true_idx_offset]
+                return x, y, true_idx
             
-            # 2. Random Jittering (稍微調弱：std=0.03 -> 0.02)
-            noise = torch.randn_like(x) * 0.02
-            x = x + noise
-            
-            # 3. Time Masking (配合更小的 patch_len=8，將遮蔽時間縮小至隨機 1~3 個 frame)
-            seq_len, dim = x.shape
-            mask_len = torch.randint(1, 4, (1,)).item()
-            if seq_len > mask_len:
-                start = torch.randint(0, seq_len - mask_len, (1,)).item()
-                x[start:start+mask_len, :] = 0.0
-
-            # 4. Point Masking (隨機點 dropout 降回 5%)
-            mask = (torch.rand_like(x) > 0.05).float()
-            x = x * mask
+        true_idx = self.indices[idx]
+        x, y, _ = self.dataset[true_idx]
         return x, y, true_idx

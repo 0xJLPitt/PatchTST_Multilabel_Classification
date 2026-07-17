@@ -2,6 +2,7 @@ import sys
 import os
 # 加入父目錄以取得 dataset 與 tools
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'patchTST')))
 
 import argparse
 import random
@@ -16,7 +17,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import f1_score
 
 # 引入原本的 Dataset 與工具
-from dataset import Dataset_Deadlift, Datasubset, Dataset_Benchpress
+from dataset.dataset import Dataset_Deadlift, Datasubset, Dataset_Benchpress
 from tools import compute_f1_score, write_result
 from PatchTST_test import test_model_with_path_tracking
 from lstm_model import LSTMClassifier # 從當前目錄(LSTM)的 lstm_model.py 引入
@@ -143,11 +144,13 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', type=int, default=0, help='Number of workers for DataLoader')
     parser.add_argument('--hidden_size', type=int, default=128, help='Hidden size for LSTM')
     parser.add_argument('--num_layers', type=int, default=2, help='Number of layers for LSTM')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay for optimizer')
+    parser.add_argument('--aug_type', type=str, default='', help='Data augmentation type')
     args = parser.parse_args()
 
     print(f"--- LSTM Training Settings ---")
     print(f"Sport: {args.sport}, Type: {args.type}")
-    print(f"Hidden Size: {args.hidden_size}, Num Layers: {args.num_layers}, Dropout: {args.dropout}")
+    print(f"Hidden Size: {args.hidden_size}, Num Layers: {args.num_layers}, Dropout: {args.dropout}, WD: {args.weight_decay}, Aug: {args.aug_type}")
     
     if args.sport == 'deadlift':
         feat_type = args.type.upper()
@@ -238,7 +241,7 @@ if __name__ == "__main__":
     all_f1_scores, cost_times, accuracies, all_class_f1_scores = [], [], [], []
 
     for i, (t_idx, v_idx, test_indices) in enumerate(dataset_folds):
-        train_dataset = Datasubset(full_dataset, t_idx, transform=True)
+        train_dataset = Datasubset(full_dataset, t_idx, transform=True, aug_type=args.aug_type if args.aug_type else None)
         valid_dataset = Datasubset(full_dataset, v_idx, transform=False)
         test_dataset = Datasubset(full_dataset, test_indices, transform=False)
 
@@ -264,7 +267,7 @@ if __name__ == "__main__":
             dropout=args.dropout
         ).to(device)
         
-        optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
+        optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=args.weight_decay)
         criterion = FocalLoss(gamma=2.0, pos_weight=pos_weight)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=args.max_epochs, min_lr_ratio=0.0)
 

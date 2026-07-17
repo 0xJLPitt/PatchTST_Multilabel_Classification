@@ -159,6 +159,7 @@ if __name__ == "__main__":
     parser.add_argument('--gamma', type=float, default=2.0, help='Focal loss gamma')
     parser.add_argument('--head_dim', type=int, default=-1, help='Classification head bottleneck dim. -1 for in_dim // 2')
     
+    parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use')
     args = parser.parse_args()
 
     print(f"--- iTransformer Training Settings ---")
@@ -254,7 +255,7 @@ if __name__ == "__main__":
     all_f1_scores, cost_times, accuracies, all_class_f1_scores = [], [], [], []
 
     for i, (t_idx, v_idx, test_indices) in enumerate(dataset_folds):
-        train_dataset = Datasubset(full_dataset, t_idx, transform=True)
+        train_dataset = Datasubset(full_dataset, t_idx, transform=True, aug_type=args.augmentation)
         valid_dataset = Datasubset(full_dataset, v_idx, transform=False)
         test_dataset = Datasubset(full_dataset, test_indices, transform=False)
 

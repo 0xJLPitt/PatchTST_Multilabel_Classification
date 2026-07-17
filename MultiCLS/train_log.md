@@ -89,3 +89,23 @@
 **下一步總結建議**：
 你的直覺完全正確！我們成功找出了這份數據的極限最佳解：**實驗 A (`10_div0.5_dim256_layers2`)**。
 保留 `hidden_dim=256` 確保模型夠寬以容納多樣性的特徵，而把層數減少為 2 以降低過擬合風險，成功達到了最高的 Macro F1 且參數量近乎減半。接下來我們可以以此架構為基礎，加入 **Data Augmentation** 來挑戰更高的極限！
+
+---
+
+## Data Augmentation 實驗 (dtwwarp)
+
+我們基於上述最佳架構 (`div0.5_dim256_layers2`) 加入了在 PatchTST 表現最好的擴增方法 `dtwwarp` 進行訓練：
+
+### 測試結果 (Tag: `multicls_dtwwarp_best`)
+- **Macro F1**: 0.6753 (比原先的 0.6855 下降)
+- **Accuracy**: 0.3719
+- **各類別 F1**:
+  - Correct: 0.5106
+  - Far from the shins: 0.7144
+  - Hips rise first: 0.7246
+  - Collide with the knees: 0.5997
+  - Lower back rounding: 0.6624
+
+### 結論
+- **效能退步**：與 PatchTST 引入 `dtwwarp` 後能突破 0.69 甚至逼近 0.7 不同，MultiCLS 加上 `dtwwarp` 後反而出現了些微的效能倒退。這暗示了 MultiCLS（特別是基於時序特徵投影與 Diversity Loss 的架構）對於時間軸的非線性扭曲 (DTW) 可能比較敏感，反而破壞了原本模型捕捉到的多樣性特徵。
+- MultiCLS 在目前的設定下，不使用 `dtwwarp` 會有最好的表現。

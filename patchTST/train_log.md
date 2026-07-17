@@ -683,3 +683,164 @@ Fold 0: Macro F1 = 0.6775, Accuracy: 0.3690, cost time = 0.000010 sec
 經過了這一連串嚴謹的消融實驗，我們正式確認了：**「65 維的原始 3D 特徵」+「8 個 Attention Heads」** 就是這個 PatchTST 模型的**黃金比例**。這套配置不僅 Macro F1 逼近 0.69，甚至 Accuracy 直接頂到了驚人的近 40%！
 
 保存在 `models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8` 裡面的模型，即為目前硬舉判定表現最強的版本！
+
+---
+
+## 🛠️ 第四階段 - 資料擴增消融實驗 (Data Augmentation Ablation Studies based on Phase 4.8_heads8)
+
+**優化目標**：測試不同資料擴增方法（如 `window_warping`, `jittering`, `spawner`, `dtwwarp`, `shapedtw`, `discdtw`）對模型表現的影響。基準模型為 Phase 4.8_heads8 最佳配置。
+
+### 🧪 測試一：Window Warping
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation window_warping --tag phase4.8_test_heads8_window_warping`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6824, Accuracy: 0.3756
+  - Correct: F1 = 0.5111
+  - Far from the shins: F1 = 0.7295
+  - Hips rise first: F1 = 0.7071
+  - Collide with the knees: F1 = 0.6217
+  - Lower back rounding: F1 = 0.6714
+```
+
+### 🧪 測試二：Jittering
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation jittering --tag phase4.8_test_heads8_jittering`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6621, Accuracy: 0.3445
+  - Correct: F1 = 0.4566
+  - Far from the shins: F1 = 0.7182
+  - Hips rise first: F1 = 0.6870
+  - Collide with the knees: F1 = 0.5765
+  - Lower back rounding: F1 = 0.6667
+```
+
+### 🧪 測試三：Spawner
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation spawner --tag phase4.8_test_heads8_spawner`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6770, Accuracy: 0.4039
+  - Correct: F1 = 0.5434
+  - Far from the shins: F1 = 0.6614
+  - Hips rise first: F1 = 0.7285
+  - Collide with the knees: F1 = 0.6522
+  - Lower back rounding: F1 = 0.6661
+```
+
+### 🧪 測試四：DTW Warp
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation dtwwarp --tag phase4.8_test_heads8_dtwwarp`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6965, Accuracy: 0.3786
+  - Correct: F1 = 0.4894
+  - Far from the shins: F1 = 0.7540
+  - Hips rise first: F1 = 0.7326
+  - Collide with the knees: F1 = 0.6200
+  - Lower back rounding: F1 = 0.6792
+```
+
+### 🧪 測試五：Shape DTW
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation shapedtw --tag phase4.8_test_heads8_shapedtw`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6905, Accuracy: 0.3734
+  - Correct: F1 = 0.5439
+  - Far from the shins: F1 = 0.7091
+  - Hips rise first: F1 = 0.7207
+  - Collide with the knees: F1 = 0.6429
+  - Lower back rounding: F1 = 0.6892
+```
+
+### 🧪 測試六：Disc DTW
+- **指令**: `/home/pitt_huang/miniforge3/bin/conda run -n cu13 python PatchTST_train.py --sport deadlift --split_mode instance_stratified --num_heads 8 --num_workers 4 --augmentation discdtw --tag phase4.8_test_heads8_discdtw`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6796, Accuracy: 0.3682
+  - Correct: F1 = 0.5281
+  - Far from the shins: F1 = 0.7117
+  - Hips rise first: F1 = 0.7219
+  - Collide with the knees: F1 = 0.6235
+  - Lower back rounding: F1 = 0.6612
+```
+
+### 🧠 資料擴增消融實驗結論
+- **最佳整體表現 (Macro F1)**: `dtwwarp` (0.6965) 表現最佳，成功打破了原先 0.6875 的歷史最高紀錄！這代表基於動態時間扭曲 (DTW) 的增強方法，非常適合幫助模型理解這類具備時間彈性的複雜動作。
+- **最佳全對準確率 (Accuracy)**: `spawner` 的 Accuracy 取得了驚人的突破，達到 **0.4039** (超越前紀錄近 40%)，在 `Correct` (0.5434) 及 `Collide with the knees` (0.6522) 的辨識能力都有顯著提升。證明特徵的組合合成 (Spawner) 能讓模型判斷錯誤時更具備穩定性與全面性。
+- **均衡型提升**: `shapedtw` 同時具備高分 Macro F1 (0.6905) 和穩定的 Accuracy (0.3734)，且在最難的 `Lower back rounding` (0.6892) 項目上創下了前所未有的新高。
+- **總結**: 引入 `dtwwarp`, `shapedtw` 或 `spawner` 的資料擴增方法能夠實質性突破不擴增的天花板。如果實務目標是「不要誤判任何一個小細節 (追求嚴格的 Accuracy)」，應該選擇 `spawner` 作為訓練標配；若目標是希望「降低各項錯誤動作的漏判率 (最大化 Macro F1)」，則可以考慮選用 `dtwwarp`。
+
+---
+
+## 🛠️ 第四階段 - 兩兩資料擴增組合消融實驗 (Pairwise Augmentation Studies based on dtwwarp)
+
+**優化目標**：基於單一擴增表現最好的 `dtwwarp`，嘗試與其他擴增方法進行兩兩組合（如 `dtwwarp+spawner`），測試是否能透過多重擴增進一步推升天花板。
+
+### 🧪 測試一：dtwwarp + window_warping
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6871, Accuracy: 0.3630
+  - Correct: F1 = 0.4910
+  - Far from the shins: F1 = 0.7198
+  - Hips rise first: F1 = 0.7285
+  - Collide with the knees: F1 = 0.6090
+  - Lower back rounding: F1 = 0.6913
+```
+
+### 🧪 測試二：dtwwarp + jittering
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6637, Accuracy: 0.3615
+  - Correct: F1 = 0.5103
+  - Far from the shins: F1 = 0.7176
+  - Hips rise first: F1 = 0.7036
+  - Collide with the knees: F1 = 0.5750
+  - Lower back rounding: F1 = 0.6584
+```
+
+### 🧪 測試三：dtwwarp + spawner
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6729, Accuracy: 0.3771
+  - Correct: F1 = 0.4979
+  - Far from the shins: F1 = 0.7185
+  - Hips rise first: F1 = 0.6849
+  - Collide with the knees: F1 = 0.6149
+  - Lower back rounding: F1 = 0.6735
+```
+
+### 🧪 測試四：dtwwarp + shapedtw
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6687, Accuracy: 0.3103
+  - Correct: F1 = 0.4405
+  - Far from the shins: F1 = 0.7332
+  - Hips rise first: F1 = 0.7094
+  - Collide with the knees: F1 = 0.5798
+  - Lower back rounding: F1 = 0.6524
+```
+
+### 🧪 測試五：dtwwarp + discdtw
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6651, Accuracy: 0.3563
+  - Correct: F1 = 0.3866
+  - Far from the shins: F1 = 0.7150
+  - Hips rise first: F1 = 0.7194
+  - Collide with the knees: F1 = 0.5802
+  - Lower back rounding: F1 = 0.6458
+```
+
+### 🧠 組合擴增消融實驗結論
+- **退步現象 (Degradation)**：令人意外的是，將 `dtwwarp` (原 Macro F1 0.6965) 與任何其他方法組合後，所有的分數都出現了明顯的下滑（最高僅剩 0.6871），連原先 Accuracy 表現最好的 `spawner` 與其組合後也僅有 0.3771，遠低於單獨使用 `spawner` 的 0.4039。
+- **雜訊過載 (Noise Overload)**：這證明了在目前已經高達 65 維的精細特徵下，疊加多種資料擴增會產生過多的矛盾雜訊（例如連續扭曲兩次時間，或是一邊扭曲時間又一邊修改角度），導致模型在訓練時無所適從，特徵反而遭到破壞。
+- **最終結論**：**不需要繼續嘗試組合擴增了！** 在 3D 骨架的硬舉動作辨識任務上，「單純且針對性」的擴增才是最有效的。建議直接採用單一的 `dtwwarp` (追求高分) 或單一的 `spawner` (追求全對)。

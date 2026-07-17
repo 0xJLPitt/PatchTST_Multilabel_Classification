@@ -101,3 +101,24 @@ class FCN1DClassifier(nn.Module):
 
 
 python FCN-1D/train.py --sport deadlift --type 3d --num_workers 2
+```
+
+---
+
+## Data Augmentation 實驗 (dtwwarp)
+
+針對 FCN-1D 基礎架構，我們加入了在其他模型表現優異的擴增方法 `dtwwarp` 進行測試：
+
+### 測試結果 (Tag: `fcn1d_dtwwarp_best`)
+- **Macro F1**: 0.6676
+- **Accuracy**: 0.3890
+- **各類別 F1**:
+  - Correct: 0.5430
+  - Far from the shins: 0.7023
+  - Hips rise first: 0.7188
+  - Collide with the knees: 0.6000
+  - Lower back rounding: 0.6491
+
+### 結論
+- **表現平穩但未突破天花板**：FCN-1D 加上 `dtwwarp` 後取得了 `0.6676` 的 Macro F1 與 `0.3890` 的不錯準確率。特別是在 `Correct` (0.54) 類別的判斷上表現優異。
+- 總體而言，在所有架構的橫向比較中，`dtwwarp` 最能發揮作用的依然是 PatchTST 模型（逼近 0.7），在其他架構上（如 FCN-1D、iTransformer、MultiCLS）雖能訓練出具備競爭力的結果，但都會碰到約 0.67 ~ 0.68 的瓶頸。

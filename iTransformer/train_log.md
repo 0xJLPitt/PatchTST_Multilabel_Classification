@@ -147,3 +147,22 @@ python train.py --d_model 32 --dropout 0.5 --pooling flatten --lr 5e-4 --head_di
 
 **接下來的最佳策略**：
 既然組合沒有比較好，在未引入 Data Augmentation 前，我們單獨採納表現最好的單一參數設定即可（例如單獨設定 **`--head_dim 128`** 達到最高 F1 0.6777）。下一步就是正式導入 **Data Augmentation** 了！
+
+---
+
+## Data Augmentation 實驗 (dtwwarp)
+
+我們基於上述最佳架構 (`--d_model 32 --dropout 0.5 --pooling flatten --head_dim 128`) 加入了在 PatchTST 表現最好的擴增方法 `dtwwarp` 進行訓練：
+
+### 測試結果 (Tag: `itransformer_dtwwarp_best`)
+- **Macro F1**: 0.6769 (比起原本最高 0.6777 幾乎持平/微降)
+- **Accuracy**: 0.3727
+- **各類別 F1**:
+  - Correct: 0.4720
+  - Far from the shins: 0.6963
+  - Hips rise first: 0.7376
+  - Collide with the knees: 0.6118
+  - Lower back rounding: 0.6619
+
+### 結論
+- 對 iTransformer 而言，`dtwwarp` 並沒有帶來突破性的進展。這可能是因為 iTransformer 將時間序列轉置為特徵（Data Inversion），而 `dtwwarp` 扭曲的是時間軸；這等於是在變數之間製造了不一致的擾動，因此模型無法像傳統時序模型那樣從中獲益。

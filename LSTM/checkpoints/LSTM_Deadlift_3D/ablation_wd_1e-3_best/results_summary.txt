@@ -1,0 +1,20 @@
+Total parameters: 601092
+Trainable parameters: 601092
+
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6485, Accuracy: 0.3081, cost time = 0.000006 sec
+  - Correct: F1 = 0.3913
+  - Far from the shins: F1 = 0.7043
+  - Hips rise first: F1 = 0.6532
+  - Collide with the knees: F1 = 0.5616
+  - Lower back rounding: F1 = 0.6747
+
+📊 Average F1 Score: 0.6485 ± 0.0000
+  Average F1 Score per Class:
+  - Correct: 0.3913 ± 0.0000
+  - Far from the shins: 0.7043 ± 0.0000
+  - Hips rise first: 0.6532 ± 0.0000
+  - Collide with the knees: 0.5616 ± 0.0000
+  - Lower back rounding: 0.6747 ± 0.0000
+🏆 Best F1: 0.6485 from Fold 0
+📁 Best model saved at: /home/pitt_huang/workspace/fitness_action_recognition/LSTM/checkpoints/LSTM_Deadlift_3D/ablation_wd_1e-3/LSTM_model_fold0.pth
