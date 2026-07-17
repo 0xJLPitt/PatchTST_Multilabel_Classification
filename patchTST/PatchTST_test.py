@@ -54,6 +54,8 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
     # 繪製混淆矩陣
     if sport == 'deadlift':
         classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
+    elif sport == 'squat':
+        classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
     binary_classes = classes[1:]

@@ -1,1 +1,1 @@
-from .dataset import Dataset_Benchpress, Datasubset, Dataset_Deadlift
+from .dataset import Dataset_Benchpress, Datasubset, Dataset_Deadlift, Dataset_Squat

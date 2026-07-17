@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--sport', type=str, choices=['benchpress', 'deadlift', 'squat'])
     parser.add_argument('--type', type=str, choices=['2d', '3d', '2D', '3D'], default='3D', help='Feature type (2D or 3D) for deadlift')
     parser.add_argument('--subject_isolated', action='store_true', help='[Deprecated] Use --split_mode instance_stratified')
-    parser.add_argument('--split_mode', type=str, choices=['subject_exclusive', 'instance_stratified', 'clip_random'], default='instance_stratified', help='Data split mode')
+    parser.add_argument('--split_mode', type=str, choices=['subject_exclusive', 'instance_stratified', 'clip_random'], default='subject_exclusive', help='Data split mode')
     parser.add_argument('--num_workers', type=int, default=0, help='Number of subset workers for DataLoader')
     parser.add_argument('--tag', type=str, help='Tag for save_dir, default is your data argumentation') # spawner, ...
     parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads in Transformer')
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     if args.subject_isolated:
-        args.split_mode = 'instance_stratified'
+        args.split_mode = 'subject_exclusive'
         
     seeds = [42] # 2023, 7, 88, 100, 999
     
@@ -152,21 +152,21 @@ if __name__ == "__main__":
         feat_type = args.type.upper()
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'deadlift_dataset_{args.type.lower()}.csv')
         full_dataset = Dataset_Deadlift(data_path)
-        save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
+        save_dir = os.path.join(os.path.dirname(__file__), 'models', 'deadlift', f'TST_Deadlift_{feat_type}', args.tag)
         num_classes = 4
         input_len = 110
         
     elif args.sport == 'benchpress':
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'benchpress_dataset.csv')
         full_dataset = Dataset_Benchpress(data_path)
-        save_dir = f'./models/benchpress/TST_Benchpress/{args.tag}'
+        save_dir = os.path.join(os.path.dirname(__file__), 'models', 'benchpress', 'TST_Benchpress', args.tag)
         num_classes = 4
         input_len = 100
         
     elif args.sport == 'squat':
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'squat_dataset_2d.csv')
         full_dataset = Dataset_Squat(data_path)
-        save_dir = f'./models/squat/TST_Squat/{args.tag}'
+        save_dir = os.path.join(os.path.dirname(__file__), 'models', 'squat', 'TST_Squat', args.tag)
         num_classes = 5
         input_len = 110
     
@@ -184,8 +184,8 @@ if __name__ == "__main__":
         random.shuffle(unique_subs)
         
         n_sub = len(unique_subs)
-        tr_end = max(1, int(0.7 * n_sub))
-        vl_end = max(tr_end + 1, int(0.8 * n_sub))
+        tr_end = max(1, int(0.8 * n_sub))
+        vl_end = max(tr_end + 1, int(0.9 * n_sub))
         
         train_subs = unique_subs[:tr_end]
         val_subs = unique_subs[tr_end:vl_end]
@@ -239,30 +239,17 @@ if __name__ == "__main__":
         for inst, label in instance_primary_label.items():
             class_total_count[label] += 1
             
-        # 優先條件：每個受試者必須至少有 1 組在 trainingset
-        for sub in sorted(subject_instances.keys()):
-            insts = list(subject_instances[sub])
-            # 用受試者名稱作為 Seed 進行 Shuffle，確保切分結果可重現
-            sub_rng = random.Random(sub)
-            sub_rng.shuffle(insts)
-            
-            first_inst = insts[0]
-            train_insts.add(first_inst)
-            first_label = instance_primary_label[first_inst]
-            class_already_train[first_label] += 1
-            
-            # 剩餘的實例作為自由分配組別
-            for free_inst in insts[1:]:
-                free_label = instance_primary_label[free_inst]
-                class_free_insts[free_label].append(free_inst)
+        # 所有實例作為自由分配組別
+        for inst, label in instance_primary_label.items():
+            class_free_insts[label].append(inst)
                 
-        # 針對每個類別，分配其剩餘的自由組別以達成全域的 70%:10%:20% 比例
+        # 針對每個類別，分配其剩餘的自由組別以達成全域的 80%:10%:10% 比例
         for label, free_list in class_free_insts.items():
             label_rng = random.Random(str(label))
             label_rng.shuffle(free_list)
             
             total_class = class_total_count[label]
-            target_train = round(0.7 * total_class)
+            target_train = round(0.8 * total_class)
             target_val = round(0.1 * total_class)
             target_test = total_class - target_train - target_val
             
@@ -282,7 +269,7 @@ if __name__ == "__main__":
                 # 分配剩下的自由組給驗證集和測試集
                 rem_list = free_list[need_tr:]
                 denom = target_val + target_test
-                val_ratio = target_val / denom if denom > 0 else 0.60
+                val_ratio = target_val / denom if denom > 0 else 0.50
                 
                 n_val = round(val_ratio * len(rem_list))
                 
@@ -378,7 +365,7 @@ if __name__ == "__main__":
     if args.sport == 'deadlift':
         classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif args.sport == 'squat':
-        classes = ['Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
+        classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
 
