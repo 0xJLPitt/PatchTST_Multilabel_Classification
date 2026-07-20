@@ -27,6 +27,7 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
     # **存放測試過程的數據**
     total_loss, total_time = 0.0, 0.0  
     y_true, y_pred = [], []
+    all_indices = []
     
     with torch.no_grad():
         for inputs, labels, indices in test_loader:
@@ -46,7 +47,7 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
             
             y_true.extend(labels.cpu().numpy().tolist())    # labels shape: (batch, num_classes)
             y_pred.extend(preds.tolist())                   # preds shape: (batch, num_classes)
-
+            all_indices.extend(indices.cpu().numpy().tolist())
     avg_loss = total_loss / len(test_loader)
     avg_time_per_sample = total_time / len(y_true)
     f1 = f1_score(y_true, y_pred, average='macro')
@@ -88,6 +89,58 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
     
     f1_errors = f1_score(y_true_np, y_pred_np, average=None, zero_division=0)
     class_f1 = [f1_correct] + list(f1_errors)
+
+    # 儲存異常資料夾清單 (通用所有模型)
+    try:
+        if hasattr(test_loader.dataset, 'dataset'):
+            instances = test_loader.dataset.dataset.instances
+        else:
+            instances = test_loader.dataset.instances
+            
+        from collections import defaultdict
+        misclassifications = defaultdict(set)
+        
+        offset = 1
+        dummy_class = 0
+        
+        for i in range(len(y_true_np)):
+            yt = y_true_np[i]
+            yp = y_pred_np[i]
+            idx = all_indices[i]
+            inst = instances[idx]
+            
+            true_classes = np.where(yt == 1)[0]
+            pred_classes = np.where(yp == 1)[0]
+            
+            if len(true_classes) == 0:
+                true_classes = [dummy_class]
+            else:
+                true_classes = [c + offset for c in true_classes]
+                
+            if len(pred_classes) == 0:
+                pred_classes = [dummy_class]
+            else:
+                pred_classes = [c + offset for c in pred_classes]
+                
+            for t in true_classes:
+                for p in pred_classes:
+                    if t != p:  # Only record misclassifications
+                        misclassifications[(t, p)].add(inst)
+                        
+        with open(os.path.join(txt_dir, "misclassified_instances.md"), "w", encoding="utf-8") as f:
+            f.write("# Misclassified Instances (Folders)\n\n")
+            
+            for (t, p), inst_set in sorted(misclassifications.items()):
+                if len(inst_set) > 0:
+                    t_name = classes[t]
+                    p_name = classes[p]
+                    f.write(f"## True: {t_name}, Pred: {p_name} (Total: {len(inst_set)})\n")
+                    for inst in sorted(list(inst_set)):
+                        f.write(f"- `{inst}`\n")
+                    f.write("\n")
+                    
+    except Exception as e:
+        print(f"Warning: Could not save misclassified instances mapping: {e}")
 
     return avg_loss, f1, avg_time_per_sample, accuracy, class_f1
 

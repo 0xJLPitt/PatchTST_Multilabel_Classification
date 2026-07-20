@@ -194,7 +194,9 @@ def process_dataset(annotations_file, dataset_dir, output_dir):
             end_frame = clip["end_frame"]
             
             clip_features = []
+            physical_raw_features = []
             valid_start_x = None
+            initial_trunk_len = None
             
             for frame in range(start_frame, end_frame + 1):
                 if frame not in skeleton_data or frame not in barbell_data:
@@ -238,17 +240,44 @@ def process_dataset(annotations_file, dataset_dir, output_dir):
                 ]
                 clip_features.append(feat)
                 
+                # --- Scale-Invariant Physical Features ---
+                r_shoulder = skel[6]
+                r_hip = skel[12]
+                r_knee = skel[14]
+                
+                trunk_vec_x = r_shoulder[0] - r_hip[0]
+                trunk_vec_y = r_shoulder[1] - r_hip[1]
+                trunk_len = np.sqrt(trunk_vec_x**2 + trunk_vec_y**2)
+                
+                if initial_trunk_len is None:
+                    initial_trunk_len = trunk_len if trunk_len > 0 else 1.0
+                
+                trunk_len_ratio = trunk_len / initial_trunk_len
+                trunk_vec_x_ratio = trunk_vec_x / initial_trunk_len
+                trunk_vec_y_ratio = trunk_vec_y / initial_trunk_len
+                knee_hip_y_ratio = (r_knee[1] - r_hip[1]) / initial_trunk_len
+                knee_hip_x_ratio = (r_knee[0] - r_hip[0]) / initial_trunk_len
+                # Keep all 5 essential features
+                physical_feat = [
+                    trunk_len_ratio, trunk_vec_x_ratio, trunk_vec_y_ratio,
+                    knee_hip_y_ratio, knee_hip_x_ratio
+                ]
+                physical_raw_features.append(physical_feat)
+                
             if len(clip_features) < 15:
                 print(f"Clip {start_frame}-{end_frame} too short, skipping.")
                 continue
                 
             clip_features = np.array(clip_features)
+            physical_raw_features = np.array(physical_raw_features)
             
             # Filtering
             clip_features = butter_lowpass_filter(clip_features, cutoff=1, fs=30, order=4)
+            physical_raw_features = butter_lowpass_filter(physical_raw_features, cutoff=1, fs=30, order=4)
             
             # Interpolation (110 frames)
             interpolated = interpolate_features(clip_features, 110)
+            physical_interpolated = interpolate_features(physical_raw_features, 110)
             
             # Package for data_split functions which expect {id: data}
             filtered_interpolated = {"0": interpolated}
@@ -264,8 +293,11 @@ def process_dataset(annotations_file, dataset_dir, output_dir):
             fzn = normalize_to_neg1_1(zscore_feature["0"])
             fdsn = normalize_to_neg1_1(delta_square_feature["0"])
             
-            # Combine 5 transformations -> [110, 50] array
-            all_feat = np.concatenate([fn, fdn, fd2n, fzn, fdsn], axis=-1)
+            # Calculate physical delta
+            physical_delta = np.vstack([np.zeros(physical_interpolated.shape[1]), np.diff(physical_interpolated, axis=0)])
+            
+            # Combine 5 transformations -> [110, 50] array + physical -> [110, 60]
+            all_feat = np.concatenate([fn, fdn, fd2n, fzn, fdsn, physical_interpolated, physical_delta], axis=-1)
             
             subject_data[subject].append({
                 "subject": subject,

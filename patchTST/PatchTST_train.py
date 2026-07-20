@@ -139,6 +139,7 @@ if __name__ == "__main__":
     parser.add_argument('--focus_hips_rise', type=float, default=1.0, help='Weight multiplier for Hips rise first class loss')
     parser.add_argument('--max_epochs', type=int, default=150, help='Max training epochs')
     parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use (can be separated by + for multiple)')
+    parser.add_argument('--data_path', type=str, default=None, help='Custom data path (e.g. .pt file for ablation study)')
     args = parser.parse_args()
     
     if args.subject_isolated:
@@ -164,8 +165,11 @@ if __name__ == "__main__":
         input_len = 100
         
     elif args.sport == 'squat':
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'squat_dataset_2d.csv')
-        full_dataset = Dataset_Squat(data_path)
+        data_path = args.data_path if args.data_path else os.path.join(os.path.dirname(__file__), '..', 'data', 'squat_dataset_2d.csv')
+        if data_path.endswith('.pt'):
+            full_dataset = Dataset_Squat_PT(data_path)
+        else:
+            full_dataset = Dataset_Squat(data_path)
         save_dir = f'./models/squat/TST_Squat/{args.tag}'
         num_classes = 5
         input_len = 110
@@ -378,7 +382,7 @@ if __name__ == "__main__":
     if args.sport == 'deadlift':
         classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif args.sport == 'squat':
-        classes = ['Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
+        classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
 

@@ -89,6 +89,8 @@ class Dataset_Squat(Dataset):
                 self.instances.append(instance)
         
         self.features = torch.stack(self.features) if self.features else torch.tensor([])
+        
+
         self.labels = torch.stack(self.labels) if self.labels else torch.tensor([])
         self.dim = self.features.shape[-1] if len(self.features) > 0 else 0
 
@@ -99,6 +101,24 @@ class Dataset_Squat(Dataset):
         x = self.features[idx]
         y = self.labels[idx]
         return x, y, idx
+
+class Dataset_Squat_PT(Dataset):
+    def __init__(self, pt_file):
+        data_dict = torch.load(pt_file)
+        self.features = data_dict['features'].float()
+        self.labels = data_dict['labels'].float()
+        self.subjects = data_dict['subjects']
+        self.instances = data_dict['instances']
+        self.dim = self.features.shape[-1] if len(self.features) > 0 else 0
+
+    def __len__(self):
+        return len(self.features)
+
+    def __getitem__(self, idx):
+        x = self.features[idx]
+        y = self.labels[idx]
+        return x, y, idx
+
 
 
 class Datasubset(Dataset):
