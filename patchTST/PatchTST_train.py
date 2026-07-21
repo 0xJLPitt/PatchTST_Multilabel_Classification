@@ -387,3 +387,15 @@ if __name__ == "__main__":
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
 
     write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path, class_names=classes, class_f1_scores=all_class_f1_scores)
+
+    # Automatically generate compound confusion matrix
+    if args.sport in ['deadlift', 'squat']:
+        print(f"\n🔄 正在產生 {args.sport} 專用的 Multi-label Compound Confusion Matrix...")
+        import subprocess
+        script_name = 'generate_complex_cm.py' if args.sport == 'deadlift' else 'generate_complex_cm_squat.py'
+        cm_script = os.path.join(os.path.dirname(__file__), script_name)
+        try:
+            subprocess.run([sys.executable, cm_script, save_dir], check=True)
+            print(f"✅ 成功產生 {args.sport} Complex Confusion Matrix！")
+        except Exception as e:
+            print(f"❌ 產生 Complex Confusion Matrix 時發生錯誤: {e}")

@@ -18,6 +18,81 @@ from models import PatchTSTClassifier
 from sklearn.metrics import accuracy_score
 
 
+def get_test_indices_instance_stratified(full_dataset):
+    import random
+    from collections import defaultdict
+    test_indices = []
+    
+    instance_subject = {}
+    instance_primary_label = {}
+    instance_indices = defaultdict(list)
+    
+    for idx in range(len(full_dataset)):
+        sub = full_dataset.subjects[idx]
+        inst = full_dataset.instances[idx]
+        label = tuple(full_dataset.labels[idx].int().tolist())
+        
+        instance_indices[inst].append(idx)
+        if inst not in instance_primary_label:
+            instance_primary_label[inst] = label
+            instance_subject[inst] = sub
+            
+    subject_instances = defaultdict(list)
+    for inst, label in instance_primary_label.items():
+        sub = instance_subject[inst]
+        subject_instances[sub].append(inst)
+        
+    train_insts, val_insts, test_insts = set(), set(), set()
+    class_free_insts = defaultdict(list)
+    class_total_count = defaultdict(int)
+    class_already_train = defaultdict(int)
+    
+    for inst, label in instance_primary_label.items():
+        class_total_count[label] += 1
+        
+    for sub in sorted(subject_instances.keys()):
+        insts = list(subject_instances[sub])
+        sub_rng = random.Random(sub)
+        sub_rng.shuffle(insts)
+        
+        first_inst = insts[0]
+        train_insts.add(first_inst)
+        first_label = instance_primary_label[first_inst]
+        class_already_train[first_label] += 1
+        
+        for free_inst in insts[1:]:
+            free_label = instance_primary_label[free_inst]
+            class_free_insts[free_label].append(free_inst)
+            
+    for label, free_list in class_free_insts.items():
+        label_rng = random.Random(str(label))
+        label_rng.shuffle(free_list)
+        
+        total_class = class_total_count[label]
+        target_train = round(0.7 * total_class)
+        target_val = round(0.1 * total_class)
+        target_test = total_class - target_train - target_val
+        
+        already_tr = class_already_train[label]
+        need_tr = max(0, target_train - already_tr)
+        
+        free_for_val_test = len(free_list) - need_tr
+        if free_for_val_test < 0:
+            for inst in free_list: train_insts.add(inst)
+        else:
+            for inst in free_list[:need_tr]: train_insts.add(inst)
+            rem_list = free_list[need_tr:]
+            denom = target_val + target_test
+            val_ratio = target_val / denom if denom > 0 else 0.60
+            n_val = round(val_ratio * len(rem_list))
+            for inst in rem_list[:n_val]: val_insts.add(inst)
+            for inst in rem_list[n_val:]: test_insts.add(inst)
+                
+    for inst in test_insts:
+        test_indices.extend(instance_indices[inst])
+        
+    return test_indices
+
 def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_path, num_classes, sport='deadlift'):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.load_state_dict(torch.load(save_path, map_location=device))
@@ -152,10 +227,10 @@ if __name__ == "__main__":
     
     from dataset import *
     if args.sport == 'deadlift':
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset_3d.csv')
         test_dataset = Dataset_Deadlift(data_path)
-        output_dir = './models/deadlift/TST_Deadlift/12'
-        save_dir = './models/deadlift/TST_Deadlift/12'
+        output_dir = './models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
+        save_dir = './models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
         num_classes = 4
         input_len = 110
     elif args.sport == 'benchpress':
@@ -183,7 +258,12 @@ if __name__ == "__main__":
 
         # 分割資料
         gen = torch.Generator().manual_seed(se)  # 為每個seed創建獨立生成器
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+        
+        test_indices = get_test_indices_instance_stratified(test_dataset)
+        from torch.utils.data import Subset
+        test_data = Subset(test_dataset, test_indices)
+        
+        test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
 
         # 訓練與測試
         model = PatchTSTClassifier(input_dim, num_classes, input_len).to(device)

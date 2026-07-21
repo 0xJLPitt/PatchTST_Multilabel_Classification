@@ -296,8 +296,8 @@ if __name__ == "__main__":
             random.shuffle(all_indices)
             
             n_total = len(all_indices)
-            tr_end = int(0.75 * n_total)
-            vl_end = int(0.90 * n_total)
+            tr_end = int(0.8 * n_total)
+            vl_end = int(0.9 * n_total)
             
             train_idx = all_indices[:tr_end]
             val_idx = all_indices[tr_end:vl_end]
@@ -370,3 +370,14 @@ if __name__ == "__main__":
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
 
     write_result(model, num_folds, all_f1_scores, accuracies, cost_times, save_dir, best_f1, best_seed, best_model_path, class_names=classes, class_f1_scores=all_class_f1_scores)
+
+    # Automatically generate compound confusion matrix
+    if args.sport == 'squat':
+        print("\n🔄 正在產生 15x15 (Multi-label Compound) Confusion Matrix...")
+        import subprocess
+        cm_script = os.path.join(os.path.dirname(__file__), 'generate_complex_cm_squat.py')
+        try:
+            subprocess.run([sys.executable, cm_script, save_dir], check=True)
+            print("✅ 成功產生 Complex Confusion Matrix！")
+        except Exception as e:
+            print(f"❌ 產生 Complex Confusion Matrix 時發生錯誤: {e}")
