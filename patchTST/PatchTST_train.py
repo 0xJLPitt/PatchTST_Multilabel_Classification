@@ -141,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use (can be separated by + for multiple)')
     parser.add_argument('--data_path', type=str, default=None, help='Custom data path (e.g. .pt file for ablation study)')
     parser.add_argument('--drop_features', type=str, default=None, help='Comma-separated list of feature indices to drop (e.g., 61,17,24,29,3,40)')
+    parser.add_argument('--num_classes', type=int, choices=[4, 5], default=4, help='Number of classes to output (4 or 5)')
     args = parser.parse_args()
     
     if args.subject_isolated:
@@ -152,10 +153,10 @@ if __name__ == "__main__":
     
     if args.sport == 'deadlift':
         feat_type = args.type.upper()
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'deadlift_dataset_{args.type.lower()}.csv')
+        data_path = args.data_path if args.data_path else os.path.join(os.path.dirname(__file__), '..', 'data', f'deadlift_dataset_{args.type.lower()}.csv')
         full_dataset = Dataset_Deadlift(data_path)
         save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
-        num_classes = 4
+        num_classes = args.num_classes
         input_len = 110
         
     elif args.sport == 'benchpress':
@@ -388,7 +389,10 @@ if __name__ == "__main__":
             best_model_path = save_path
 
     if args.sport == 'deadlift':
-        classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
+        if num_classes == 5:
+            classes = ['Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding', 'Correct']
+        else:
+            classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif args.sport == 'squat':
         classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:

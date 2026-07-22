@@ -86,17 +86,29 @@ def get_test_indices_instance_stratified(full_dataset):
     return test_indices
 
 def vector_to_label(vec):
-    classes = ['Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
-    active = [classes[i] for i, val in enumerate(vec) if val == 1]
-    if not active:
-        return 'Correct'
-    return ' + '.join(active)
+    classes = ['Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding', 'Correct']
+    if len(vec) == 4:
+        # Fallback for old 4-class vectors
+        classes = classes[:4]
+        active = [classes[i] for i, val in enumerate(vec) if val == 1]
+        if not active:
+            return 'Correct'
+        return ' + '.join(active)
+    else:
+        # 5-class vectors
+        active = [classes[i] for i, val in enumerate(vec) if val == 1]
+        if not active or active == ['Correct']:
+            return 'Correct'
+        # If there are errors, remove 'Correct' if it somehow got in there (shouldn't happen in data, but just in case)
+        if 'Correct' in active and len(active) > 1:
+            active.remove('Correct')
+        return ' + '.join(active)
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    data_path = os.path.join(os.path.dirname(__file__), 'data', 'deadlift_dataset_3d.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'data', 'deadlift_dataset_3d_5class.csv')
     if not os.path.exists(data_path):
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset_3d.csv')
+        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset_3d_5class.csv')
         
     full_dataset = Dataset_Deadlift(data_path)
     test_indices = get_test_indices_instance_stratified(full_dataset)
@@ -107,7 +119,7 @@ def main():
     import sys
     
     input_dim = full_dataset.dim
-    num_classes = 4
+    num_classes = full_dataset.labels.shape[1] if hasattr(full_dataset, 'labels') else 5
     input_len = 110
     
     # Allow passing base_dir as an argument

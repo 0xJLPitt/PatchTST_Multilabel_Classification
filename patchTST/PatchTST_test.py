@@ -129,12 +129,15 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
 
     # 繪製混淆矩陣
     if sport == 'deadlift':
-        classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
+        if num_classes == 5:
+            classes = ['Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding', 'Correct']
+        else:
+            classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif sport == 'squat':
         classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
-    binary_classes = classes[1:]
+    binary_classes = classes if num_classes == len(classes) else classes[1:]
     
     cm = multilabel_confusion_matrix(y_true, y_pred, sample_weight=None, labels=None, samplewise=False)
     n_classes = cm.shape[0]
@@ -158,12 +161,15 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
     # 計算每個類別的 F1 score (包含 Correct)
     y_true_np = np.array(y_true)
     y_pred_np = np.array(y_pred)
-    y_true_correct = (np.sum(y_true_np, axis=1) == 0).astype(int)
-    y_pred_correct = (np.sum(y_pred_np, axis=1) == 0).astype(int)
-    f1_correct = f1_score(y_true_correct, y_pred_correct, average='binary', zero_division=0)
-    
     f1_errors = f1_score(y_true_np, y_pred_np, average=None, zero_division=0)
-    class_f1 = [f1_correct] + list(f1_errors)
+    
+    if num_classes == len(classes): # 5 classes (explicit Correct)
+        class_f1 = list(f1_errors)
+    else: # 4 classes (implicit Correct)
+        y_true_correct = (np.sum(y_true_np, axis=1) == 0).astype(int)
+        y_pred_correct = (np.sum(y_pred_np, axis=1) == 0).astype(int)
+        f1_correct = f1_score(y_true_correct, y_pred_correct, average='binary', zero_division=0)
+        class_f1 = [f1_correct] + list(f1_errors)
 
     # 儲存異常資料夾清單 (通用所有模型)
     try:
@@ -223,15 +229,23 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     parser = argparse.ArgumentParser()
     parser.add_argument('--sport', type=str, choices=['benchpress', 'deadlift'])
+    parser.add_argument('--num_classes', type=int, choices=[4, 5], default=4, help='Number of classes for deadlift (4 or 5)')
+    parser.add_argument('--type', type=str, choices=['2d', '3d', '2D', '3D'], default='3D', help='Feature type (2D or 3D) for deadlift')
+    parser.add_argument('--tag', type=str, required=True, help='Tag for save_dir to locate the model')
     args = parser.parse_args()
     
     from dataset import *
     if args.sport == 'deadlift':
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset_3d.csv')
+        feat_type = args.type.upper()
+        if args.num_classes == 5:
+            data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'deadlift_dataset_3d_5class.csv')
+        else:
+            data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'deadlift_dataset_{args.type.lower()}.csv')
+            
+        output_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
+        save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
         test_dataset = Dataset_Deadlift(data_path)
-        output_dir = './models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
-        save_dir = './models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
-        num_classes = 4
+        num_classes = args.num_classes
         input_len = 110
     elif args.sport == 'benchpress':
         data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'benchpress_dataset.csv')

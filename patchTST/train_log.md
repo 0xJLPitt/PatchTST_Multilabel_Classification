@@ -944,3 +944,36 @@ if batch_size > 1:
 3. **物理意義**：這等同於我們在問模型：「如果我把 A 選手的完美起槓軌跡，原封不動地貼到 B 選手的身體上，你還能正確判斷出 B 選手是否有圓背嗎？」
 
 這個嚴謹的跨樣本置換，確保了我們的特徵重要性分數 (Importance Score) 是純粹基於「這個特徵的空間軌跡對於判斷動作正誤的必要性」而計算出來的，而沒有被破壞時間序列所產生的無意義雜訊干擾。
+
+
+---
+
+## �� 五分類最新測試結果 (2026-07-22)
+
+- **指令**: `/home/pitt_huang/.conda/envs/cu13/bin/python patchTST/PatchTST_train.py --sport deadlift --type 3D --tag phase4.8_test_heads8_dtwwarp_5class --num_workers 4 --num_heads 8 --augmentation dtwwarp --data_path ./data/deadlift_dataset_3d_5class.csv`
+**執行結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6533, Accuracy: 0.3331, cost time = 0.000013 sec
+  - Far from the shins: F1 = 0.7165
+  - Hips rise first: F1 = 0.7488
+  - Collide with the knees: F1 = 0.6167
+  - Lower back rounding: F1 = 0.6141
+  - Correct: F1 = 0.5704
+
+📊 Average F1 Score: 0.6533 ± 0.0000
+  Average F1 Score per Class:
+  - Far from the shins: 0.7165 ± 0.0000
+  - Hips rise first: 0.7488 ± 0.0000
+  - Collide with the knees: 0.6167 ± 0.0000
+  - Lower back rounding: 0.6141 ± 0.0000
+  - Correct: 0.5704 ± 0.0000
+🏆 Best F1: 0.6533 from Fold 0
+📁 Best model saved at: ./models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp_5class/PatchTST_model_fold0.pth
+```
+
+**分析與洞察 (2026-07-22)**：
+1. **正式改為 5 分類 (5-Class) 輸出**：本次測試首度將 `Correct` 正式作為第 5 種類別輸出，並調整了 `PatchTST_test.py` 與 `generate_complex_cm.py` 使其能正確處理 5 維的 Multi-label。
+2. **分數顯示 Bug 修復 (False Alarm)**：原本日誌顯示 `Far from the shins` 暴跌為 0.0000，經查證是 `PatchTST_test.py` 在計算陣列時發生的**顯示錯位 Bug**！真正的模型預測完全正常，`Far from the shins` 其實保持在 **0.7165**，而 `Correct` 的真實 F1 分數為 **0.5704**（依然創下歷史新高）。
+3. **Macro F1 與 Accuracy 維持水準**：雖然沒有打破 4 分類時期的最佳配置 (Macro 0.678 / Acc 0.38)，但對於加入 5 類挑戰的首次測試來說，**0.6533** 的平均表現與 **0.5704** 的極高正確率辨識，顯示出模型的學習依然相當穩健。
+4. **複雜混淆矩陣成功生成**：本次順利生成了 `16x16` (15 個錯誤組合 + Correct) 的 `Complex Confusion Matrix`，代表新的 5 分類評估流程已全面打通，後續訓練將能以此為基準。
