@@ -140,6 +140,7 @@ if __name__ == "__main__":
     parser.add_argument('--max_epochs', type=int, default=150, help='Max training epochs')
     parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use (can be separated by + for multiple)')
     parser.add_argument('--data_path', type=str, default=None, help='Custom data path (e.g. .pt file for ablation study)')
+    parser.add_argument('--drop_features', type=str, default=None, help='Comma-separated list of feature indices to drop (e.g., 61,17,24,29,3,40)')
     args = parser.parse_args()
     
     if args.subject_isolated:
@@ -173,6 +174,13 @@ if __name__ == "__main__":
         save_dir = f'./models/squat/TST_Squat/{args.tag}'
         num_classes = 5
         input_len = 110
+        
+    if args.drop_features:
+        drop_indices = [int(x.strip()) for x in args.drop_features.split(',')]
+        keep_indices = [i for i in range(full_dataset.dim) if i not in drop_indices]
+        full_dataset.features = full_dataset.features[:, :, keep_indices]
+        full_dataset.dim = len(keep_indices)
+        print(f"Dropped features: {drop_indices}. New input dim: {full_dataset.dim}")
     
     
     dataset_folds = []
