@@ -1,3 +1,21 @@
+"""
+======================================================================
+PatchTST_train.py 使用說明與常用指令
+
+[ 4 分類模式 (預設) ]
+- 預設讀取資料: data/deadlift_dataset_3d.csv (依據 --type 自動組合路徑)
+- 執行指令範例:
+  python PatchTST_train.py --sport deadlift --type 3D --tag your_tag_name
+
+[ 5 分類模式 (包含 Correct 類別) ]
+- 必須使用 `--num_classes 5` 來啟用動態 5 分類邏輯。
+- 必須使用 `--data_path` 強制覆蓋預設路徑，指向特製的 5class.csv 檔案。
+- 執行指令範例:
+  python PatchTST_train.py --sport deadlift --num_classes 5 --tag your_tag_name_5class --data_path ./data/deadlift_dataset_3d_5class.csv
+
+※ 註: 測試腳本 (PatchTST_test.py) 也已同步支援 --num_classes 與 --tag 動態對接資料夾。
+======================================================================
+"""
 from random import choice
 import torch
 import sys

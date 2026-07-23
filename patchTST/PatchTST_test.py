@@ -134,7 +134,10 @@ def test_model_with_path_tracking(model, test_loader, criterion, txt_dir, save_p
         else:
             classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif sport == 'squat':
-        classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
+        if num_classes == 6:
+            classes = ['Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise', 'Correct']
+        else:
+            classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
     binary_classes = classes if num_classes == len(classes) else classes[1:]
@@ -245,6 +248,18 @@ if __name__ == "__main__":
         output_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
         save_dir = f'./models/deadlift/TST_Deadlift_{feat_type}/{args.tag}'
         test_dataset = Dataset_Deadlift(data_path)
+        num_classes = args.num_classes
+        input_len = 110
+    elif args.sport == 'squat':
+        feat_type = args.type.upper()
+        if args.num_classes == 6:
+            data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'squat_dataset_{args.type.lower()}_6class.csv')
+        else:
+            data_path = os.path.join(os.path.dirname(__file__), '..', 'data', f'squat_dataset_{args.type.lower()}.csv')
+            
+        output_dir = f'./models/squat/TST_Squat_{feat_type}/{args.tag}'
+        save_dir = f'./models/squat/TST_Squat_{feat_type}/{args.tag}'
+        test_dataset = Dataset_Squat(data_path)
         num_classes = args.num_classes
         input_len = 110
     elif args.sport == 'benchpress':

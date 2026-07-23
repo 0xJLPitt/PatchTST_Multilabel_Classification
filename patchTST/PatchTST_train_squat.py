@@ -1,3 +1,19 @@
+"""
+======================================================================
+PatchTST_train_squat.py 使用說明與常用指令
+
+[ 5 分類模式 (預設，僅算 5 種錯誤) ]
+- 預設讀取資料: data/squat_dataset_2d.csv 或 3d.csv (依據 --type 自動組合路徑)
+- 執行指令範例:
+  python PatchTST_train_squat.py --sport squat --type 2D --tag your_tag_name
+
+[ 6 分類模式 (包含 Correct 類別) ]
+- 必須使用 `--num_classes 6` 來啟用動態 6 分類邏輯。
+- 必須使用 `--data_path` 強制覆蓋預設路徑，指向特製的 6class 檔案。
+- 執行指令範例:
+  python PatchTST_train_squat.py --sport squat --type 2D --num_classes 6 --tag your_tag_name_6class --data_path ./data/squat_dataset_2d_6class.csv
+======================================================================
+"""
 from random import choice
 import torch
 import sys
@@ -139,6 +155,8 @@ if __name__ == "__main__":
     parser.add_argument('--focus_hips_rise', type=float, default=1.0, help='Weight multiplier for Hips rise first class loss')
     parser.add_argument('--max_epochs', type=int, default=150, help='Max training epochs')
     parser.add_argument('--augmentation', type=str, default=None, help='Type of augmentation to use (can be separated by + for multiple)')
+    parser.add_argument('--data_path', type=str, default=None, help='Custom data path')
+    parser.add_argument('--num_classes', type=int, choices=[5, 6], default=5, help='Number of classes to output (5 errors, or 6 with Correct)')
     args = parser.parse_args()
     
     if args.subject_isolated:
@@ -164,10 +182,14 @@ if __name__ == "__main__":
         input_len = 100
         
     elif args.sport == 'squat':
-        data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'squat_dataset_2d.csv')
-        full_dataset = Dataset_Squat(data_path)
-        save_dir = os.path.join(os.path.dirname(__file__), 'models', 'squat', 'TST_Squat', args.tag)
-        num_classes = 5
+        feat_type = args.type.upper()
+        data_path = args.data_path if args.data_path else os.path.join(os.path.dirname(__file__), '..', 'data', f'squat_dataset_{args.type.lower()}.csv')
+        if data_path.endswith('.pt'):
+            full_dataset = Dataset_Squat_PT(data_path)
+        else:
+            full_dataset = Dataset_Squat(data_path)
+        save_dir = os.path.join(os.path.dirname(__file__), 'models', 'squat', f'TST_Squat_{feat_type}', args.tag)
+        num_classes = args.num_classes
         input_len = 110
     
     
@@ -365,7 +387,10 @@ if __name__ == "__main__":
     if args.sport == 'deadlift':
         classes = ['Correct', 'Far from the shins', 'Hips rise first', 'Collide with the knees', 'Lower back rounding']
     elif args.sport == 'squat':
-        classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
+        if num_classes == 6:
+            classes = ['Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise', 'Correct']
+        else:
+            classes = ['Correct', 'Insufficient_Depth', 'Excessive_Knee_Dominance', 'Excessive_Hip_Dominance', 'Posterior_Pelvic_Tilt', 'Early_Hip_Rise']
     else:
         classes = ['Correct', 'tilting to the left', 'tilting to the right', 'scapular protraction', 'elbows flaring']
 
