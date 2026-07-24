@@ -14,3 +14,4 @@ output.zip
 DeadliftDataset_0408
 BenchpressDataset
 *.pth
+umap_results/
