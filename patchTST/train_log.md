@@ -977,3 +977,36 @@ Fold 0: Macro F1 = 0.6533, Accuracy: 0.3331, cost time = 0.000013 sec
 2. **分數顯示 Bug 修復 (False Alarm)**：原本日誌顯示 `Far from the shins` 暴跌為 0.0000，經查證是 `PatchTST_test.py` 在計算陣列時發生的**顯示錯位 Bug**！真正的模型預測完全正常，`Far from the shins` 其實保持在 **0.7165**，而 `Correct` 的真實 F1 分數為 **0.5704**（依然創下歷史新高）。
 3. **Macro F1 與 Accuracy 維持水準**：雖然沒有打破 4 分類時期的最佳配置 (Macro 0.678 / Acc 0.38)，但對於加入 5 類挑戰的首次測試來說，**0.6533** 的平均表現與 **0.5704** 的極高正確率辨識，顯示出模型的學習依然相當穩健。
 4. **複雜混淆矩陣成功生成**：本次順利生成了 `16x16` (15 個錯誤組合 + Correct) 的 `Complex Confusion Matrix`，代表新的 5 分類評估流程已全面打通，後續訓練將能以此為基準。
+
+
+---
+
+### Phase 4.9: 5-Class 邏輯懲罰與 Loss 改良測試 (Focal Loss + Logic Penalty)
+
+**實驗日期**: 2026-07-24
+**目標**: 
+觀察到 UMAP 圖中 5-class 將 Correct 點獨立分群，但原本的 Loss 在交界地帶會讓模型產生邏輯矛盾（例如同時預測「沒有錯誤」與「有特定錯誤」）。因此引入 `LogicConstrainedFocalLoss`，在 Focal Loss 基礎上加上權重為 0.1 的邏輯懲罰（Penalty 1: `p_correct * max_p_error`），試圖消滅矛盾。同時加入 `dtwwarp` 進行資料增強。
+
+**執行指令**:
+```bash
+python PatchTST_train.py --sport deadlift --num_classes 5 --tag phase4.8_test_heads8_focal_logic_dtwwarp_5class --data_path ../data/deadlift_dataset_3d_5class.csv --num_heads 8 --num_workers 4 --augmentation dtwwarp
+```
+
+**測試結果**:
+```text
+✅ F1 scores from each Fold:
+Fold 0: Macro F1 = 0.6552, Accuracy: 0.2930, cost time = 0.000013 sec
+  - Far from the shins: F1 = 0.7155
+  - Hips rise first: F1 = 0.7330
+  - Collide with the knees: F1 = 0.6154
+  - Lower back rounding: F1 = 0.6293
+  - Correct: F1 = 0.5830
+```
+
+**分析與洞察 (2026-07-24)**：
+1. **邏輯懲罰效果有限，神經網路早已隱式學習**：加上人工邏輯懲罰後，Macro F1 從 0.6533 微幅上升至 0.6552。這證明了模型光靠大量訓練資料的 BCE/Focal Loss，就已經學會了 Correct 和 Errors 是互斥的。額外的 Penalty 只發揮了錦上添花的作用（使 `Correct` 與 `Lower back rounding` 分數微升），但犧牲了一些 Exact Match Accuracy (掉至 0.2930)。這排除了「模型是因為邏輯錯亂才導致準確率上不去」的假說。
+2. **損失函數優化已達極限**：既然 Loss 函數的改動已無法帶來突破性成長，且資料已經過人工篩選及完美對齊 (110 frames = 3.66s，能涵蓋整個動作)，這代表當前的瓶頸在於**特徵萃取 (Feature Representation)**。模型無法單從目前的純 3D 座標點 (COCO 17點) 中，有效捕捉出如「脊椎彎曲弧度」這種微小但關鍵的生物力學幾何特徵。
+3. **未來重點突破計畫：導入 SMPL 3D (4DHumans / EasyMocap)**：
+   - 目前 YOLO11n-pose 缺乏明確的「脊椎中段」節段，導致圓背偵測受到極大限制。
+   - 接下來將徹底升級特徵抽取流程！利用團隊現有的 **5 機位 (Multi-view)** 高品質同步資料，搭配 **SMPL 3D 人體網格還原模型 (如 4DHumans, 或是多機位的 EasyMocap)**，直接還原出受試者真實 3D 空間中的脊椎彎曲角度 (Spine1, Spine2, Spine3 Rotation)。
+   - 多機位可以完美解決被槓片遮擋以及深度模糊的問題。這將把模型從「猜測純 3D 點」轉變為「精準判斷生物力學特徵」，預計能大幅突破 5-class 分類在交界特徵上的瓶頸！

@@ -11,7 +11,7 @@ PatchTST_train.py 使用說明與常用指令
 - 必須使用 `--num_classes 5` 來啟用動態 5 分類邏輯。
 - 必須使用 `--data_path` 強制覆蓋預設路徑，指向特製的 5class.csv 檔案。
 - 執行指令範例:
-  python PatchTST_train.py --sport deadlift --num_classes 5 --tag your_tag_name_5class --data_path ./data/deadlift_dataset_3d_5class.csv
+  python PatchTST_train.py --sport deadlift --num_classes 5 --tag new_error_logic_5class --data_path ../data/deadlift_dataset_3d_5class.csv --num_heads 8 --num_workers 4
 
 ※ 註: 測試腳本 (PatchTST_test.py) 也已同步支援 --num_classes 與 --tag 動態對接資料夾。
 ======================================================================
@@ -36,19 +36,40 @@ import argparse
 from PatchTST_test import test_model_with_path_tracking
 import math
 
-class FocalLoss(torch.nn.Module):
-    def __init__(self, gamma=2.0, pos_weight=None):
+class LogicConstrainedFocalLoss(torch.nn.Module):
+    def __init__(self, gamma=2.0, pos_weight=None, apply_logic_penalty=False, penalty_weight=0.1):
         super().__init__()
         self.gamma = gamma
         self.pos_weight = pos_weight
+        self.apply_logic_penalty = apply_logic_penalty
+        self.penalty_weight = penalty_weight
 
     def forward(self, inputs, targets):
-        bce_loss = torch.nn.functional.binary_cross_entropy_with_logits(inputs, targets, reduction='none', pos_weight=self.pos_weight)
+        # 1. 原始 Focal Loss
+        bce_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            inputs, targets, reduction='none', pos_weight=self.pos_weight
+        )
         probs = torch.sigmoid(inputs)
         p_t = probs * targets + (1 - probs) * (1 - targets)
         focal_weight = (1 - p_t) ** self.gamma
         focal_loss = focal_weight * bce_loss
-        return focal_loss.mean()
+        base_loss = focal_loss.mean()
+
+        # 2. 邏輯懲罰項 (適用於最後一個類別是 Correct 的情況)
+        if self.apply_logic_penalty:
+            p_errors = probs[:, :-1]  # 前面所有類別視為錯誤
+            p_correct = probs[:, -1]  # 最後一個類別視為正確
+            
+            # 取出最大的錯誤機率
+            max_p_error, _ = torch.max(p_errors, dim=1)
+            
+            # 懲罰 1: 同時預測「有錯誤」與「正確」 (最嚴重的邏輯矛盾)
+            penalty1 = p_correct * max_p_error
+            
+            logic_penalty = penalty1.mean()
+            return base_loss + self.penalty_weight * logic_penalty
+            
+        return base_loss
 
 def train_model(model, train_loader, valid_loader, criterion, optimizer, scheduler, save_path, fig_path, num_epochs=150, patience=8):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -382,7 +403,9 @@ if __name__ == "__main__":
 
         model = PatchTSTClassifier(input_dim, num_classes, input_len, num_heads=args.num_heads).to(device)
         optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
-        criterion = FocalLoss(gamma=2.0, pos_weight=pos_weight)
+        # 當 num_classes == 5 (包含 Correct 類別) 且是 deadlift 時，啟用邏輯懲罰
+        apply_logic = (num_classes == 5) and (args.sport == 'deadlift')
+        criterion = LogicConstrainedFocalLoss(gamma=2.0, pos_weight=pos_weight, apply_logic_penalty=apply_logic, penalty_weight=0.1)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=args.max_epochs, min_lr_ratio=0.0)
 
         save_path = os.path.join(save_dir, f"PatchTST_model_fold{i}.pth")
