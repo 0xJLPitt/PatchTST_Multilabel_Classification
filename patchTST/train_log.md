@@ -1010,3 +1010,25 @@ Fold 0: Macro F1 = 0.6552, Accuracy: 0.2930, cost time = 0.000013 sec
    - 目前 YOLO11n-pose 缺乏明確的「脊椎中段」節段，導致圓背偵測受到極大限制。
    - 接下來將徹底升級特徵抽取流程！利用團隊現有的 **5 機位 (Multi-view)** 高品質同步資料，搭配 **SMPL 3D 人體網格還原模型 (如 4DHumans, 或是多機位的 EasyMocap)**，直接還原出受試者真實 3D 空間中的脊椎彎曲角度 (Spine1, Spine2, Spine3 Rotation)。
    - 多機位可以完美解決被槓片遮擋以及深度模糊的問題。這將把模型從「猜測純 3D 點」轉變為「精準判斷生物力學特徵」，預計能大幅突破 5-class 分類在交界特徵上的瓶頸！
+
+---
+
+### Phase 4.10: 邏輯懲罰機制深入探討與消融實驗 (Logic Penalty Ablation)
+**實驗日期**: 2026-07-28
+**目標**:
+為了解決在 Phase 4.9 中發現的「加入邏輯懲罰 (`p_correct * max_p_error`) 後 Accuracy 不升反降 (掉至 0.2930)」問題，進行了針對邏輯懲罰機制的消融與修正實驗，探討這類 Constraint Loss 對神經網路最佳化的真實影響。
+
+**實驗一：修正 `max()` 的梯度陷阱 (Probability Smearing)**
+- **問題分析**：原始的懲罰公式為 `p_correct * max_p_error`。由於 `torch.max()` 的特性，反向傳播時只會懲罰機率最高的那一個錯誤。這導致模型學會了「作弊 (Probability Smearing)」：把最肯定的錯誤機率降低，並把其他錯誤的機率提高，來讓 `max` 值變小以躲避懲罰。這造成了原本是單一錯誤的樣本 (如 `Far from the shins`)，被大量預測為雙重錯誤 (如 `Far + Lower back rounding`)，導致 Accuracy 暴跌。
+- **作法**：將 `max` 改為 `sum`，即 `p_correct * sum(p_errors)`，讓每一個被預測出來的錯誤都受到 `p_correct` 的約束。
+- **結果**：Accuracy 回升至 `0.3119`。從混淆矩陣觀察，雙重錯誤的「作弊」現象被成功消除 (`Far + Lower` 從 138 次降回 80 次)。這證明「強制互斥」的機制確實生效了。
+
+**實驗二：解決乘法懲罰帶來的「拖累效應」 (Drag Effect)**
+- **問題分析**：改用 `sum` 之後，Accuracy (0.3119) 依然無法超越完全無懲罰的 Baseline (0.3331)。原因是 `p_correct * p_error` 這個公式在數學上會無差別地「打壓」真實答案。當真實標籤為 `Error` 時，BCE 會推升 `p_error`，但懲罰項卻會產生一個向下的梯度拖累它（只要 `p_correct` 不完全是 0）。這種拖累效應導致模型對真實答案的信心度下降，造成更多預測低於門檻 (False Negatives)，降低了全對率。
+- **作法**：引入 ReLU 建立容忍度：`ReLU(p_correct + p_error - 1.0)`。只在機率總和超過 1.0 (真正發生邏輯矛盾) 時才給予懲罰，一旦回到合理範圍就關閉懲罰。
+- **結果**：Macro F1 微幅上升至 0.6496，但 Accuracy 仍停留在 0.3119，依然未能超越 Baseline。
+
+**最終結論與洞察 (The Bitter Lesson)**：
+1. **神經網路的 BCE 本身就具備學習邏輯的能力**：只要資料集的標籤是完美互斥的 (`Correct=1` 則 `Errors=0`)，模型的最後一層權重自然會學到負相關，完全不需人為介入。
+2. **手動邏輯懲罰會破壞機率校準 (Calibration)**：強制加入的邏輯懲罰，會破壞神經網路在面對模糊、不確定樣本時的機率輸出，讓模型變得過度保守。此外，這股懲罰力量也會與對付資料不平衡的 `pos_weight` 產生嚴重內耗。
+3. **最佳實踐方案：將邏輯留給後處理 (Post-processing)**：在訓練階段 (Training)，最正確的做法是完全拔除 `apply_logic_penalty`，讓模型透過 BCE 自由學習最原始的機率分佈 (能達到最高的 0.3331 Accuracy)。若要在實際應用中確保輸出絕對不矛盾，應在推論階段 (Inference) 利用程式碼 (如 `if p_correct > p_error`) 撰寫硬規則來覆寫預測結果。

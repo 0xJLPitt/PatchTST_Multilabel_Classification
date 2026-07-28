@@ -58,15 +58,17 @@ class LogicConstrainedFocalLoss(torch.nn.Module):
         # 2. 邏輯懲罰項 (適用於最後一個類別是 Correct 的情況)
         if self.apply_logic_penalty:
             p_errors = probs[:, :-1]  # 前面所有類別視為錯誤
-            p_correct = probs[:, -1]  # 最後一個類別視為正確
+            p_correct = probs[:, -1:] # 保留 2D 維度 [Batch, 1]，方便後面廣播相乘
             
-            # 取出最大的錯誤機率
-            max_p_error, _ = torch.max(p_errors, dim=1)
+            # 【終極修正版】：當機率總和大於 1 時，才視為邏輯矛盾並給予懲罰
+            # 如果總和 <= 1，ReLU 會讓它變成 0，懲罰項自動關閉，不再拖累 BCE！
+            conflict = p_correct + p_errors - 1.0
+            penalty_matrix = torch.nn.functional.relu(conflict)  # 小於0就歸零
             
-            # 懲罰 1: 同時預測「有錯誤」與「正確」 (最嚴重的邏輯矛盾)
-            penalty1 = p_correct * max_p_error
+            # 接著一樣加總並取平均
+            logic_penalty = penalty_matrix.sum(dim=1).mean()
+
             
-            logic_penalty = penalty1.mean()
             return base_loss + self.penalty_weight * logic_penalty
             
         return base_loss
@@ -403,8 +405,8 @@ if __name__ == "__main__":
 
         model = PatchTSTClassifier(input_dim, num_classes, input_len, num_heads=args.num_heads).to(device)
         optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
-        # 當 num_classes == 5 (包含 Correct 類別) 且是 deadlift 時，啟用邏輯懲罰
-        apply_logic = (num_classes == 5) and (args.sport == 'deadlift')
+        # 根據 2026-07-28 的消融實驗 (The Bitter Lesson)，手動邏輯懲罰會干擾 BCE 的機率校準，導致 Accuracy 下降，故全面關閉
+        apply_logic = False
         criterion = LogicConstrainedFocalLoss(gamma=2.0, pos_weight=pos_weight, apply_logic_penalty=apply_logic, penalty_weight=0.1)
         scheduler = get_warmup_cosine_scheduler(optimizer, warmup_epochs=5, max_epochs=args.max_epochs, min_lr_ratio=0.0)
 
