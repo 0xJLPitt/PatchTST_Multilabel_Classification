@@ -17,4 +17,4 @@ Fold 0: Macro F1 = 0.6628, Accuracy: 0.3638, cost time = 0.000013 sec
   - Collide with the knees: 0.6053 ± 0.0000
   - Lower back rounding: 0.6336 ± 0.0000
 🏆 Best F1: 0.6628 from Fold 0
-📁 Best model saved at: /home/pitt_huang/workspace/fitness_action_recognition/iTransformer/checkpoints/iTransformer_Deadlift_3D/ab_combine_lr_head/iTransformer_model_fold0.pth
+📁 Best model saved at: /home/pitt_huang/workspace/dev/fitness_action_recognition/iTransformer/checkpoints/iTransformer_Deadlift_3D/ab_combine_lr_head/iTransformer_model_fold0.pth

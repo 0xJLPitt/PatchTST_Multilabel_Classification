@@ -2,7 +2,7 @@
 # Ablation study for Squat Posterior Pelvic Tilt features
 
 # Ensure we are in the correct directory
-cd /home/pitt_huang/workspace/fitness_action_recognition
+cd /home/pitt_huang/workspace/dev/fitness_action_recognition
 
 # 1. Baseline (original 50 features)
 echo "Running Baseline..."

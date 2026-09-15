@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd /home/pitt_huang/workspace/fitness_action_recognition/MultiCLS
+cd /home/pitt_huang/workspace/dev/fitness_action_recognition/MultiCLS
 
 PYTHON="/home/pitt_huang/.conda/envs/cu13/bin/python"
 

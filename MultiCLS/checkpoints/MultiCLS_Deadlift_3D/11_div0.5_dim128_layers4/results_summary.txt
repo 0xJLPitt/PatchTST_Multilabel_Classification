@@ -17,4 +17,4 @@ Fold 0: Macro F1 = 0.6747, Accuracy: 0.3638, cost time = 0.000020 sec
   - Collide with the knees: 0.6079 ± 0.0000
   - Lower back rounding: 0.6641 ± 0.0000
 🏆 Best F1: 0.6747 from Fold 0
-📁 Best model saved at: /home/pitt_huang/workspace/fitness_action_recognition/MultiCLS/checkpoints/MultiCLS_Deadlift_3D/11_div0.5_dim128_layers4/MultiCLS_model_fold0.pth
+📁 Best model saved at: /home/pitt_huang/workspace/dev/fitness_action_recognition/MultiCLS/checkpoints/MultiCLS_Deadlift_3D/11_div0.5_dim128_layers4/MultiCLS_model_fold0.pth

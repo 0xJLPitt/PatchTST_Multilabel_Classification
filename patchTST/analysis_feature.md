@@ -28,11 +28,11 @@
 你可以直接傳入這個 Multi-label 模型的 `.pth` 檔。假設你的運動類型是 `deadlift`，可以這樣下指令：
 
 ```bash
-cd /home/pitt_huang/workspace/fitness_action_recognition/patchTST
+cd /home/pitt_huang/workspace/dev/fitness_action_recognition/patchTST
 
 python permutation_importance.py \
     --sport deadlift \
-    --model_paths /home/pitt_huang/workspace/fitness_action_recognition/patchTST/models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp/PatchTST_model_fold0.pth \
+    --model_paths /home/pitt_huang/workspace/dev/fitness_action_recognition/patchTST/models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp/PatchTST_model_fold0.pth \
     --num_heads 8 \
     --output_csv deadlift_feature_importance.csv
 ```
@@ -43,6 +43,6 @@ python permutation_importance.py \
 
 python permutation_importance.py \
     --sport squat \
-    --model_paths /home/pitt_huang/workspace/fitness_action_recognition/patchTST/models/squat/TST_Squat/phase4.8_test_heads8_squat2/PatchTST_model_fold0.pth \
+    --model_paths /home/pitt_huang/workspace/dev/fitness_action_recognition/patchTST/models/squat/TST_Squat/phase4.8_test_heads8_squat2/PatchTST_model_fold0.pth \
     --num_heads 8 \
     --output_csv squat_feature_importance.csv

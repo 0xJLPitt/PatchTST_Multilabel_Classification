@@ -114,7 +114,7 @@ def main():
     if len(sys.argv) > 1:
         base_dir = sys.argv[1]
     else:
-        base_dir = '/home/pitt_huang/workspace/fitness_action_recognition/patchTST/models/squat/TST_Squat/squat_trunk_scale_invariant_best0719_60feature_best'
+        base_dir = '/home/pitt_huang/workspace/dev/fitness_action_recognition/patchTST/models/squat/TST_Squat/squat_trunk_scale_invariant_best0719_60feature_best'
         
     model = PatchTSTClassifier(input_dim, num_classes, input_len, num_heads=4).to(device)
     save_path = os.path.join(base_dir, 'PatchTST_model_fold0.pth')

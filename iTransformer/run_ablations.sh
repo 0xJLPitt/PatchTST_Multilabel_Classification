@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/pitt_huang/workspace/fitness_action_recognition/iTransformer
+cd /home/pitt_huang/workspace/dev/fitness_action_recognition/iTransformer
 
 LOG_FILE="ablation_results.log"
 echo "--- iTransformer Ablation Results ---" > $LOG_FILE

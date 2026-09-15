@@ -126,7 +126,7 @@ def main():
     if len(sys.argv) > 1:
         base_dir = sys.argv[1]
     else:
-        base_dir = '/home/pitt_huang/workspace/fitness_action_recognition/patchTST/models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
+        base_dir = '/home/pitt_huang/workspace/dev/fitness_action_recognition/patchTST/models/deadlift/TST_Deadlift_3D/phase4.8_test_heads8_dtwwarp'
         
     model = PatchTSTClassifier(input_dim, num_classes, input_len, num_heads=8).to(device)
     save_path = os.path.join(base_dir, 'PatchTST_model_fold0.pth')
